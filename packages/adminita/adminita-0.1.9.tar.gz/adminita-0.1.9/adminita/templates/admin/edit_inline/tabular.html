@@ -1,0 +1,130 @@
+{% load i18n admin_urls static adminita_tags %}
+<div class="js-inline-admin-formset inline-group"
+     id="{{ inline_admin_formset.formset.prefix }}-group"
+     data-inline-type="tabular"
+     data-inline-formset="{{ inline_admin_formset.inline_formset_data }}">
+
+  <fieldset class="module {{ inline_admin_formset.classes }} bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 overflow-hidden">
+    
+    {# Section Header #}
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white px-4 py-3 bg-gray-50 dark:bg-gray-750 border-b border-gray-200 dark:border-gray-700">
+      {% if inline_admin_formset.formset.max_num == 1 %}
+        {{ inline_admin_formset.opts.verbose_name|capfirst }}
+      {% else %}
+        {{ inline_admin_formset.opts.verbose_name_plural|capfirst }}
+      {% endif %}
+    </h2>
+    
+    {{ inline_admin_formset.formset.management_form }}
+    
+    {# Non-form errors #}
+    {% if inline_admin_formset.formset.non_form_errors %}
+    <div class="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 text-sm border-b border-red-200 dark:border-red-800">
+      {{ inline_admin_formset.formset.non_form_errors }}
+    </div>
+    {% endif %}
+    
+    {# Table Container #}
+    <div class="tabular-container overflow-x-auto">
+      <table class="w-full min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        
+        {# Table Header #}
+        <thead class="bg-gray-50 dark:bg-gray-750">
+          <tr>
+            <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-8">
+              &nbsp;
+            </th>
+            
+            {% for field in inline_admin_formset.fields %}
+              {% if not field.widget.is_hidden %}
+              <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                {{ field.label|capfirst }}
+                {% if field.required %}<span class="text-red-500">*</span>{% endif %}
+              </th>
+              {% endif %}
+            {% endfor %}
+            
+            {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_delete_permission %}
+            <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">
+              {% translate "Delete" %}
+            </th>
+            {% endif %}
+          </tr>
+        </thead>
+        
+        {# Table Body #}
+        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+          {% for inline_admin_form in inline_admin_formset %}
+          <tr class="form-row {% if inline_admin_form.original or inline_admin_form.show_url %}has_original{% endif %}{% if forloop.last and inline_admin_formset.has_add_permission %} empty-form{% endif %}"
+              id="{{ inline_admin_formset.formset.prefix }}-{% if forloop.last and inline_admin_formset.has_add_permission %}empty{% else %}{{ forloop.counter0 }}{% endif %}">
+            
+            {# Row number / handle #}
+            <td class="original px-3 py-3 text-sm text-gray-500 dark:text-gray-400 font-medium">
+              {% if inline_admin_form.original or inline_admin_form.show_url %}
+                <span class="inline-num">{{ forloop.counter }}</span>
+              {% endif %}
+              {% if inline_admin_form.needs_explicit_pk_field %}
+                {{ inline_admin_form.pk_field.field }}
+              {% endif %}
+              {{ inline_admin_form.fk_field.field }}
+              
+              {% if inline_admin_form.form.non_field_errors %}
+              <div class="text-red-500 text-xs mt-1">{{ inline_admin_form.form.non_field_errors }}</div>
+              {% endif %}
+            </td>
+            
+            {% for fieldset in inline_admin_form %}
+              {% for line in fieldset %}
+                {% for field in line %}
+                  {% if not field.field.is_hidden %}
+                  <td class="px-3 py-3 {% if field.field.name %}field-{{ field.field.name }}{% endif %}">
+                    {% if field.is_readonly %}
+                      <div class="readonly-field text-gray-900 dark:text-gray-100">{{ field|safe_contents }}</div>
+                      {% if inline_admin_form.show_url %}
+                      <a href="{{ inline_admin_form.absolute_url }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline ml-2">
+                        {% translate "View" %}
+                      </a>
+                      {% endif %}
+                    {% else %}
+                      {% if field.field.errors %}
+                      <div class="text-red-500 text-xs mb-1">{{ field.field.errors }}</div>
+                      {% endif %}
+                      {{ field.field }}
+                    {% endif %}
+                  </td>
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            {% endfor %}
+            
+            {% if inline_admin_formset.formset.can_delete and inline_admin_formset.has_delete_permission %}
+            <td class="delete px-3 py-3 text-center">
+              {% if inline_admin_form.original %}
+              <label class="sr-only" for="id_{{ inline_admin_formset.formset.prefix }}-{{ forloop.counter0 }}-DELETE">
+                {% translate "Delete" %}
+              </label>
+              {{ inline_admin_form.deletion_field.field }}
+              {% endif %}
+            </td>
+            {% endif %}
+            
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    
+    {# Add Row Link #}
+    {% if inline_admin_formset.has_add_permission %}
+    <div class="add-row px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750">
+      <a href="#" class="inline-flex items-center text-sm font-medium text-primary-600 dark:text-primary-400 hover:text-primary-800 dark:hover:text-primary-300">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
+        {% blocktranslate with verbose_name=inline_admin_formset.opts.verbose_name %}Add another {{ verbose_name }}{% endblocktranslate %}
+      </a>
+    </div>
+    {% endif %}
+    
+  </fieldset>
+</div>

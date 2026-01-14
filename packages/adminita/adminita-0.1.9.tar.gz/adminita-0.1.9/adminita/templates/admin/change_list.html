@@ -1,0 +1,321 @@
+{% extends "admin/base.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block content_title %}
+    {% if cl.opts.verbose_name_plural %}
+        {{ cl.opts.verbose_name_plural|capfirst }}
+    {% else %}
+        {{ cl.opts.verbose_name|capfirst }}
+    {% endif %}
+{% endblock %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    {{ media.css }}
+    <style>
+        /* Actions bar styling for Adminita */
+        #changelist-form .actions {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid rgb(229, 231, 235);
+            background-color: rgb(249, 250, 251);
+        }
+        .dark #changelist-form .actions {
+            border-color: rgb(55, 65, 81);
+            background-color: rgb(31, 41, 55);
+        }
+        #changelist-form .actions label {
+            font-size: 0.875rem;
+            color: rgb(55, 65, 81);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .dark #changelist-form .actions label {
+            color: rgb(209, 213, 219);
+        }
+        #changelist-form .actions select {
+            padding: 0.5rem 2rem 0.5rem 0.75rem;
+            border: 1px solid rgb(209, 213, 219);
+            border-radius: 0.5rem;
+            background-color: white;
+            font-size: 0.875rem;
+            color: rgb(17, 24, 39);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.25rem;
+        }
+        .dark #changelist-form .actions select {
+            border-color: rgb(75, 85, 99);
+            background-color: rgb(55, 65, 81);
+            color: rgb(243, 244, 246);
+        }
+        #changelist-form .actions select:focus {
+            outline: none;
+            border-color: rgb(59, 130, 246);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        #changelist-form .actions button {
+            padding: 0.5rem 1rem;
+            background-color: rgb(75, 85, 99);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.15s;
+        }
+        #changelist-form .actions button:hover {
+            background-color: rgb(55, 65, 81);
+        }
+        #changelist-form .actions .action-counter {
+            font-size: 0.875rem;
+            color: rgb(107, 114, 128);
+            margin-left: 0.5rem;
+        }
+        .dark #changelist-form .actions .action-counter {
+            color: rgb(156, 163, 175);
+        }
+        #changelist-form .actions span.all,
+        #changelist-form .actions span.clear {
+            font-size: 0.875rem;
+            color: rgb(59, 130, 246);
+            cursor: pointer;
+            margin-left: 0.25rem;
+        }
+        #changelist-form .actions span.all:hover,
+        #changelist-form .actions span.clear:hover {
+            text-decoration: underline;
+        }
+        #changelist-form .actions span.question {
+            font-size: 0.875rem;
+            color: rgb(107, 114, 128);
+            margin-left: 0.5rem;
+        }
+        #changelist-form .actions span.question a {
+            color: rgb(59, 130, 246);
+        }
+        .dark #changelist-form .actions span.question {
+            color: rgb(156, 163, 175);
+        }
+        .hidden { display: none !important; }
+        
+        /* Table styling */
+        #result_list table td {
+            padding: 0.75rem 1.5rem;
+            font-size: 0.875rem;
+            color: rgb(55, 65, 81);
+            vertical-align: middle;
+        }
+        .dark #result_list table td {
+            color: rgb(209, 213, 219);
+        }
+        #result_list table td a {
+            color: rgb(37, 99, 235);
+            text-decoration: none;
+        }
+        #result_list table td a:hover {
+            text-decoration: underline;
+        }
+        .dark #result_list table td a {
+            color: rgb(96, 165, 250);
+        }
+        
+        /* Checkbox column styling */
+        .action-checkbox-column {
+            width: 2rem;
+            padding: 0.75rem 1rem !important;
+        }
+        td.action-checkbox {
+            padding: 0.75rem 1rem !important;
+            width: 2rem;
+        }
+        
+        /* Checkbox styling */
+        #action-toggle,
+        .action-select {
+            width: 1rem;
+            height: 1rem;
+            border-radius: 0.25rem;
+            border: 1px solid rgb(209, 213, 219);
+            background-color: white;
+            cursor: pointer;
+            accent-color: rgb(59, 130, 246);
+        }
+        .dark #action-toggle,
+        .dark .action-select {
+            border-color: rgb(75, 85, 99);
+            background-color: rgb(55, 65, 81);
+        }
+        #action-toggle:checked,
+        .action-select:checked {
+            background-color: rgb(59, 130, 246);
+            border-color: rgb(59, 130, 246);
+        }
+        
+        /* Selected row highlight */
+        tr.selected {
+            background-color: rgb(239, 246, 255) !important;
+        }
+        .dark tr.selected {
+            background-color: rgba(59, 130, 246, 0.1) !important;
+        }
+        
+        /* Field-specific styling (list_display fields) */
+        td[class^="field-"] {
+            white-space: nowrap;
+        }
+        
+        /* Boolean field icons */
+        td img[alt="True"], td img[alt="False"] {
+            width: 1rem;
+            height: 1rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div id="changelist" class="module flex gap-6">
+    
+    <!-- MAIN CONTENT AREA -->
+    <div class="flex-1">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+
+            <!-- Toolbar: Search + Add -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-4">
+                {% block search %}
+                {% if cl.search_fields %}
+                <form id="changelist-search" method="get" class="flex items-center space-x-2 flex-1 min-w-[300px]">
+                    <div class="relative flex-1">
+                        <input type="search"
+                               name="q"
+                               value="{{ cl.query }}"
+                               placeholder="{% trans 'Search' %}"
+                               class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                    {% for key, value in cl.params.items %}
+                        {% if key != 'q' and key != 'p' %}
+                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                        {% endif %}
+                    {% endfor %}
+                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                        {% trans 'Search' %}
+                    </button>
+                </form>
+                {% endif %}
+                {% endblock %}
+
+                {% block object-tools %}
+                {% if has_add_permission %}
+                <a href="{% url cl.opts|admin_urlname:'add' %}" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    {% trans 'Add' %} {{ cl.opts.verbose_name }}
+                </a>
+                {% endif %}
+                {% endblock %}
+            </div>
+
+            <!-- Main Form: Actions + Results + Save -->
+            <form id="changelist-form" method="post" action=""{% if cl.formset and cl.formset.is_multipart %} enctype="multipart/form-data"{% endif %} novalidate>
+                {% csrf_token %}
+                
+                <!-- Actions Bar - Using Django's built-in template tag -->
+                {% if action_form and actions_on_top %}
+                    {% admin_actions %}
+                {% endif %}
+
+                {% if cl.formset %}{{ cl.formset.management_form }}{% endif %}
+
+                {# Results #}
+                <div id="result_list" class="overflow-x-auto">
+                    {% if cl.result_count %}
+                        {% result_list cl %}
+                    {% else %}
+                        <div class="p-12 text-center">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/>
+                            </svg>
+                            <p class="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">{% trans 'No results found' %}</p>
+                            {% if cl.query %}<p class="mt-2 text-sm text-gray-500">{% blocktrans with query=cl.query %}No matches for "{{ query }}"{% endblocktrans %}</p>{% endif %}
+                            <a href="?" class="mt-4 inline-flex items-center text-sm text-blue-600 hover:underline">
+                                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                {% trans 'Clear all filters' %}
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                {# Actions at bottom too - standard Django behavior #}
+                {% if action_form and actions_on_bottom %}
+                    {% admin_actions %}
+                {% endif %}
+
+                {# Save for list_editable #}
+                {% if cl.formset and cl.result_count %}
+                <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                    <input type="submit" name="_save" value="{% translate 'Save' %}" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium cursor-pointer">
+                </div>
+                {% endif %}
+            </form>
+
+            {# Pagination #}
+            {% block pagination %}
+            {% if cl.result_count %}
+            <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    {{ cl.result_count }} {{ cl.opts.verbose_name_plural }}
+                </span>
+                {% if cl.multi_page %}
+                <nav class="flex items-center space-x-1">
+                    {% if cl.page_num > 0 %}
+                    <a href="?{% for k,v in cl.params.items %}{% if k != 'p' %}{{ k }}={{ v }}&{% endif %}{% endfor %}p={{ cl.page_num|add:'-1' }}" class="px-3 py-1 text-sm border rounded hover:bg-gray-50 dark:hover:bg-gray-700">{% trans 'Previous' %}</a>
+                    {% endif %}
+                    <span class="px-3 py-1 text-sm">{% blocktrans with page=cl.page_num|add:1 pages=cl.paginator.num_pages %}{{ page }}/{{ pages }}{% endblocktrans %}</span>
+                    {% if cl.page_num < cl.paginator.num_pages|add:"-1" %}
+                    <a href="?{% for k,v in cl.params.items %}{% if k != 'p' %}{{ k }}={{ v }}&{% endif %}{% endfor %}p={{ cl.page_num|add:1 }}" class="px-3 py-1 text-sm border rounded hover:bg-gray-50 dark:hover:bg-gray-700">{% trans 'Next' %}</a>
+                    {% endif %}
+                </nav>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endblock %}
+        </div>
+    </div>
+
+    {# FILTER SIDEBAR #}
+    {% block filters %}
+    {% if cl.has_filters %}
+    <aside class="w-64 flex-shrink-0" id="changelist-filter">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 sticky top-20">
+            <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-750 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">{% trans 'Filter' %}</h3>
+                <a href="?" class="text-xs text-blue-600 dark:text-blue-400 hover:underline">{% trans 'Clear' %}</a>
+            </div>
+            <div class="p-4 space-y-4">
+                {% for spec in cl.filter_specs %}
+                    {% admin_list_filter cl spec %}
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+    {% endif %}
+    {% endblock %}
+
+</div>
+{% endblock %}
+
+{% block extrajs %}
+    {{ block.super }}
+    {{ media.js }}
+{% endblock %}
