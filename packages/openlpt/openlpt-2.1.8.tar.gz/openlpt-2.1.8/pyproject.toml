@@ -1,0 +1,76 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "pybind11>=2.10", "cmake>=3.15"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openlpt"
+dynamic = ["version"]
+description = "Open-source Lagrangian Particle Tracking (LPT) with GUI and CLI"
+readme = "README.md"
+authors = [{ name = "Shiyong Tan @ JHU Ni Research Lab", email = "tanshiyong84@gmail.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: C++",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+dependencies = [
+    "numpy>=2.2.0",
+    "pandas>=2.2.2",
+    "pybind11>=2.10",
+    "scipy>=1.11.0",
+    "opencv-python>=4.8.0",
+    "scikit-learn>=1.0.0",
+    "numba>=0.60.0",
+    "matplotlib>=3.7.0",
+    "requests>=2.31.0",
+    "pycine>=0.3.2",
+    "pywin32>=306; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+gui = [
+    "PySide6>=6.6.0",
+    "qtawesome>=1.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Sinchy/pyOpenLPT"
+
+[project.scripts]
+openlpt = "openlpt:main"
+openlpt-gui = "openlpt:launch_gui"
+
+[tool.setuptools]
+py-modules = ["openlpt", "_version"]
+
+[tool.setuptools.dynamic]
+version = {attr = "_version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["modules*", "gui*", "utils*"]
+
+[tool.setuptools.package-data]
+gui = ["*.qss", "assets/*.png", "docs/**/*.html", "docs/**/*.png", "docs/**/*.css", "docs/**/*.js"]
+modules = ["**/*.html", "**/*.png"]
+"*" = ["*.html", "*.png", "*.qss"]
+
+[tool.cibuildwheel]
+# Build only 64-bit platforms
+skip = ["*-win32", "*-manylinux_i686", "*-musllinux_*", "pp*"]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+test-requires = "pytest"
+test-command = "python -c \"import openlpt; print('OpenLPT imported successfully')\""
+
+[tool.cibuildwheel.linux]
+# Manylinux images have either yum/dnf or apt-get.
+before-all = "yum install -y libomp-devel || apt-get update && apt-get install -y libomp-dev || true"
+
+[tool.cibuildwheel.macos]
+before-build = "brew install libomp"
+environment = { LDFLAGS="-L$(brew --prefix libomp)/lib", CPPFLAGS="-I$(brew --prefix libomp)/include", MACOSX_DEPLOYMENT_TARGET="15.0" }
