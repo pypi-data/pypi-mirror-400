@@ -1,0 +1,209 @@
+{% from "macros.html" import classification_input, multi_input, xpath_or_value_input, required_fields_disclaimer with
+context %}
+<div class="container py-4">
+    <!-- Navigation -->
+    <ul class="nav nav-pills mb-4 d-flex align-items-center" id="collectionNav" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="basic-attributes-tab" data-bs-toggle="pill"
+                data-bs-target="#basicAttributes" type="button" role="tab" aria-controls="basicAttributes"
+                aria-selected="true">Collection Attributes</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="work-attributes-tab" data-bs-toggle="pill" data-bs-target="#workAttributes"
+                type="button" role="tab" aria-controls="workAttributes" aria-selected="false">Work</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="edition-attributes-tab" data-bs-toggle="pill"
+                data-bs-target="#editionAttributes" type="button" role="tab" aria-controls="editionAttributes"
+                aria-selected="false">Edition</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="eltecAttributes-tab" data-bs-toggle="pill" data-bs-target="#eltecAttributes"
+                type="button" role="tab" aria-controls="eltecAttributes" aria-selected="false">ELTEC
+                Specifications</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="classificationAttributes-tab" data-bs-toggle="pill"
+                data-bs-target="#classificationAttributes" type="button" role="tab"
+                aria-controls="classificationAttributes" aria-selected="false">Classifications</button>
+        </li>
+    </ul>
+
+    <!-- Config Sections -->
+    <div class="tab-content" id="collectionTabContent">
+        {% set collection_parser = project.get_collection_parser(collection) %}
+
+        <!-- Tab: Collection Attributes -->
+        <div class="tab-pane fade show active" id="basicAttributes" role="tabpanel"
+            aria-labelledby="basic-attributes-tab">
+            <form class="js-tab-submit" method="POST" enctype="multipart/form-data"
+                data-reload-subtab="#basicAttributes" action=" {{ url_for('collection.save_collection_attributes',
+                projectname=project.path, collectionname=collectionname) }}">
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>Collection Attributes</i>
+                    </label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">
+                        Short title
+                        <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" name="short_title"
+                        value="{{ collection.short_title or '' }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">
+                        Long title
+                        <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control" name="long_title" value="{{ collection.long_title or '' }}"
+                        required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Rights Holder
+                        <span class="text-danger">*</span>
+                    </label>
+                    {{ multi_input(collection.rights_holder or [{}], 'rights_holder') }}
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">
+                        Collector
+                        <span class="text-danger">*</span>
+                    </label>
+                    {{ multi_input(collection.collector or [{}], 'collector') }}
+                </div>
+                <div class="mt-3 row text-center">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: Classifications -->
+        <div class="tab-pane fade" id="classificationAttributes" role="tabpanel"
+            aria-labelledby="classificationAttributes-tab">
+            <form class="js-tab-submit" method="POST" data-reload-subtab="#classificationAttributes"
+                action="{{ url_for('collection.save_collection_classifications', projectname=project.path, collectionname=collectionname) }}">
+                {{ classification_input('basic_classifications', 'Collection classification(s)',
+                collection.basic_classifications) }}
+
+                {{ classification_input('gnd_subjects', 'GND Subject Area(s)', collection.gnd_subjects) }}
+                <div class="mt-3 row text-center">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: Work -->
+        <div class="tab-pane fade" id="workAttributes" role="tabpanel" aria-labelledby="work-attributes-tab">
+            <form class="js-tab-submit" method="POST" data-reload-subtab="#workAttributes"
+                action="{{ url_for('collection.save_collection_metadata', projectname=project.path, collectionname=collectionname) }}">
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>General</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('ID', 'work_id',
+                collection.work_id, collection_parser) }}
+                {{ xpath_or_value_input('Title', 'work_title', collection.work_title, collection_parser) }}
+                {{ xpath_or_value_input('Genre', 'genre', collection.genre, collection_parser, required=True) }}
+                {{ xpath_or_value_input('Place of publication', 'work_publication_place',
+                collection.work_publication_place, collection_parser) }}
+
+                <div class="mb-3 row">
+                    <label class="col-sm-12 col-form-label text-center"><i>Author</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('ID', 'author_id', collection.author_id, collection_parser)
+                }}
+                {{ xpath_or_value_input('Firstname', 'author_firstname', collection.author_firstname, collection_parser)
+                }}
+                {{ xpath_or_value_input('Lastname', 'author_lastname', collection.author_lastname, collection_parser) }}
+                {{ xpath_or_value_input('Fullname', 'author_fullname', collection.author_fullname, collection_parser) }}
+                <div class="mb-3 row">
+                    <label class="col-sm-12 col-form-label text-center">
+                        <i title="Set Date OR notBefore + notAfter!">
+                            Date of Creation
+                            <span class="text-danger">*</span>
+                        </i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('Date', 'work_publication_date',
+                collection.work_publication_date,
+                collection_parser) }}
+                {{ xpath_or_value_input('notBefore', 'work_publication_notBefore',
+                collection.work_publication_notBefore,
+                collection_parser) }}
+                {{ xpath_or_value_input('notAfter', 'work_publication_notAfter',
+                collection.work_publication_notAfter,
+                collection_parser) }}
+                <div class="mt-3 row text-center">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: Edition -->
+        <div class="tab-pane fade" id="editionAttributes" role="tabpanel" aria-labelledby="edition-attributes-tab">
+            <form class="js-tab-submit" method="POST" data-reload-subtab="#editionAttributes"
+                action="{{ url_for('collection.save_collection_metadata', projectname=project.path, collectionname=collectionname) }}">
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>General</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('Title', 'edition_title', collection.edition_title, collection_parser) }}
+                {{ xpath_or_value_input('Author ID', 'edition_author', collection.edition_author, collection_parser) }}
+                {{ xpath_or_value_input('Language', 'language', collection.language, collection_parser) }}
+                {{ xpath_or_value_input('Wordcount', 'wordcount', collection.wordcount, collection_parser) }}
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>Publication</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('Date', 'edition_publication_date',
+                collection.edition_publication_date, collection_parser) }}
+                {{ xpath_or_value_input('Place', 'edition_publication_place',
+                collection.edition_publication_place, collection_parser) }}
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>License</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('Title', 'edition_license_title',
+                collection.edition_license_title, collection_parser) }}
+                {{ xpath_or_value_input('URL', 'edition_license_url',
+                collection.edition_license_url, collection_parser) }}
+                <div class="mt-3 row text-center">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Tab: ELTEC Specifications -->
+        <div class="tab-pane fade" id="eltecAttributes" role="tabpanel" aria-labelledby="eltecAttributes-tab">
+            <form class="js-tab-submit" method="POST" data-reload-subtab="#eltecAttributes"
+                action="{{ url_for('collection.save_collection_metadata', projectname=project.path, collectionname=collectionname) }}">
+                <div class="mb-3 row text-center">
+                    <label class="col-sm-12 col-form-label text-center"><i>General</i>
+                    </label>
+                </div>
+                {{ xpath_or_value_input('Author gender', 'eltec_author_gender', collection.eltec_author_gender,
+                collection_parser) }}
+                {{ xpath_or_value_input('Reprint count', 'eltec_reprintCount', collection.eltec_reprintCount,
+                collection_parser) }}
+                {{ xpath_or_value_input('Timeslot', 'eltec_time_slot', collection.eltec_time_slot,
+                collection_parser) }}
+                {{ xpath_or_value_input('Corpus collection', 'eltec_corpus', collection.eltec_corpus,
+                collection_parser) }}
+                {{ xpath_or_value_input('Size', 'eltec_size', collection.eltec_size,
+                collection_parser) }}
+                <div class="mt-3 row text-center">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+
+        {{ required_fields_disclaimer() }}
+
+
+    </div>
+</div>
