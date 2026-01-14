@@ -1,0 +1,247 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - 'main'
+      - '[0-9]+.[0-9]+'
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
+  pull_request:
+  merge_group:
+
+jobs:
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [
+          {os: "ubuntu-22.04", arch: "x86_64", etcd_arch: "amd64"},
+          {os: "ubuntu-22.04-arm", arch: "aarch64", etcd_arch: "arm64"},
+        ]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.14t"]
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+    - name: Checkout the revision
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        fetch-depth: 0  # Required to fetch submodule commits on non-default branches
+    - name: Set up Rust toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+        # Include Python version in cache key to prevent cross-contamination
+        # between GIL-enabled (3.14) and free-threaded (3.14t) builds
+        cache-key: py${{ matrix.python-version }}
+    - name: Install protobuf compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        version: "33.2"
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install uv and set the Python version
+      uses: astral-sh/setup-uv@v7
+      with:
+        enable-cache: true
+        python-version: ${{ matrix.python-version }}
+    - name: Check python build
+      run: |
+        uv run --no-project python -c 'import sys; print(sys.prefix); print(sys.version_info)'
+        uv run --no-project python -c 'import sysconfig; flag=sysconfig.get_config_var("Py_GIL_DISABLED"); print(f"Py_GIL_DISABLED={flag}")'
+        uv run --no-project python -c 'import sys; print(f"{sys.abiflags=}")'
+    - name: Install dependencies and build the package
+      run: |
+        uv sync --locked --all-extras --no-install-project
+        uv run maturin develop
+    - name: Test
+      run: |
+        uv run pytest
+
+  release-linux:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [
+          {os: "ubuntu-22.04", arch: "x86_64", maturin_arch: "x86_64"},
+          {os: "ubuntu-22.04-arm", arch: "aarch64", maturin_arch: "aarch_64"},
+        ]
+        manylinux: ["manylinux2014"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout the revision
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        env:
+          PROTOC: /home/runner/.local/bin/protoc
+        with:
+          command: build
+          args: --release -o dist -i python${{ matrix.python-version }}
+          before-script-linux: |
+            PB_REL="https://github.com/protocolbuffers/protobuf/releases"
+            curl -LO $PB_REL/download/v23.2/protoc-23.2-linux-${{ matrix.platform.maturin_arch }}.zip
+            unzip protoc-23.2-linux-${{ matrix.platform.maturin_arch }}.zip -d $HOME/.local
+            export PATH="$PATH:$HOME/.local/bin"
+          manylinux: ${{ matrix.manylinux }}
+          target: ${{ matrix.platform.arch }}
+          rust-toolchain: stable
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.manylinux }}-${{ matrix.platform.arch }}-${{ matrix.python-version }}
+          path: dist
+
+  release-linux-freethreaded:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [
+          {os: "ubuntu-22.04", arch: "x86_64", maturin_arch: "x86_64"},
+          {os: "ubuntu-22.04-arm", arch: "aarch64", maturin_arch: "aarch_64"},
+        ]
+        manylinux: ["manylinux2014"]
+        python-version: ["3.14t"]
+    runs-on: ${{ matrix.platform.os }}
+    steps:
+      - name: Checkout the revision
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        env:
+          PROTOC: /home/runner/.local/bin/protoc
+        with:
+          command: build
+          args: --release -o dist -i python${{ matrix.python-version }}
+          before-script-linux: |
+            PB_REL="https://github.com/protocolbuffers/protobuf/releases"
+            curl -LO $PB_REL/download/v23.2/protoc-23.2-linux-${{ matrix.platform.maturin_arch }}.zip
+            unzip protoc-23.2-linux-${{ matrix.platform.maturin_arch }}.zip -d $HOME/.local
+            export PATH="$PATH:$HOME/.local/bin"
+          manylinux: ${{ matrix.manylinux }}
+          target: ${{ matrix.platform.arch }}
+          rust-toolchain: stable
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.manylinux }}-${{ matrix.platform.arch }}-${{ matrix.python-version }}
+          path: dist
+
+  release-macos:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout the revision
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+      - name: Install prerequisites
+        run: |
+          brew install protobuf
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release -o dist --target universal2-apple-darwin -i python${{ matrix.python-version }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-universal2-${{ matrix.python-version }}
+          path: dist/*
+
+  release-macos-freethreaded:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14t"]
+    steps:
+      - name: Checkout the revision
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          cache: false
+      - name: Install prerequisites
+        run: |
+          brew install protobuf
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          command: build
+          args: --release -o dist --target universal2-apple-darwin -i python${{ matrix.python-version }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-universal2-${{ matrix.python-version }}
+          path: dist/*
+
+  release-source:
+    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the revision
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Set up Python as Runtime
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build the source distribution
+        run: |
+          pip install -U pip setuptools
+          pip install -U build
+          python -m build --sdist
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-src
+          path: dist
+
+  publish-to-pypi:
+    needs: [release-linux, release-linux-freethreaded, release-macos, release-macos-freethreaded, release-source]
+    environment: deploy-to-pypi
+    permissions:
+      id-token: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
