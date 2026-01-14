@@ -1,0 +1,154 @@
+# ADR: {{ title }}
+
+**ADR #:** {{ adr_number or "ADR-YYYYMMDD-XX" }}
+**Status:** {{ status }}
+**Date:** {{ date or "" }}
+**Author / Owner:** {{ authors | join(", ") if authors else "TBD" }}
+{% if reviewers %}
+**Reviewers:** {{ reviewers | join(", ") }}
+{% endif %}
+{% if tags %}
+**Tags:** {{ tags | join(", ") }}
+{% endif %}
+
+## Context and Problem Statement
+{% if context and context.background %}
+{{ context.background }}
+{% else %}
+Describe the business context, problem statement, and the need for this architectural decision.
+{% endif %}
+{% if context and context.drivers %}
+
+**Primary Drivers**
+{% for d in context.drivers %}
+- {{ d }}
+{% endfor %}
+{% endif %}
+{% if context and context.constraints %}
+
+**Constraints**
+{% for c in context.constraints %}
+- {{ c }}
+{% endfor %}
+{% endif %}
+
+## Decision
+{% if decision %}
+{{ decision.rationale if decision.rationale else "Describe the high-level architectural decision and key choices made." }}
+{% if decision.chosen %}
+
+**Chosen Approach:** {{ decision.chosen }}
+{% endif %}
+{% else %}
+Describe the high-level architectural decision and key choices made.
+{% endif %}
+{% if options %}
+
+**Key Constraints/Choices:**
+{% for opt in options %}
+- **{{ opt.name }}**{% if opt.pros %}: {{ opt.pros | join("; ") }}{% endif %}
+
+{% endfor %}
+{% endif %}
+
+## Rationale
+{% if rationale %}
+{% for r in rationale %}
+- {{ r }}
+{% endfor %}
+{% else %}
+- Explain why this approach was chosen over alternatives.
+- Describe how it aligns with business goals and technical principles.
+- Note any trade-offs accepted.
+{% endif %}
+
+## Alternatives Considered
+{% if alternatives %}
+{% for alt in alternatives %}
+- **{{ alt.name }}**{% if alt.pros %} — Pro: {{ alt.pros | join(", ") }}{% endif %}{% if alt.cons %} — Con: {{ alt.cons | join(", ") }}{% endif %}
+
+{% endfor %}
+{% elif options %}
+{% for opt in options %}
+{% if decision and opt.name != decision.chosen %}
+- **{{ opt.name }}**{% if opt.pros %} — Pro: {{ opt.pros | join(", ") }}{% endif %}{% if opt.cons %} — Con: {{ opt.cons | join(", ") }}{% endif %}
+
+{% endif %}
+{% endfor %}
+{% else %}
+- **Alternative A** — Pro: <benefits>; Con: <drawbacks>
+- **Alternative B** — Pro: <benefits>; Con: <drawbacks>
+{% endif %}
+
+## Consequences / Implications
+{% if consequences %}
+{% if consequences.positive %}
+**Positive:**
+{% for p in consequences.positive %}
+- {{ p }}
+{% endfor %}
+{% endif %}
+{% if consequences.negative %}
+
+**Negative / Risks:**
+{% for n in consequences.negative %}
+- {{ n }}
+{% endfor %}
+{% endif %}
+{% else %}
+- Describe the implications of this decision on teams, processes, and future work.
+- Note any risks or areas requiring ongoing attention.
+{% endif %}
+
+## Links / Diagrams
+{% if references %}
+{% if references.links %}
+{% for link in references.links %}
+- {{ link }}
+{% endfor %}
+{% endif %}
+{% if references.related_adrs %}
+
+**Related ADRs:**
+{% for adr in references.related_adrs %}
+- {{ adr }}
+{% endfor %}
+{% endif %}
+{% else %}
+- Link to HLD document, diagrams, and related artifacts.
+- Reference any related ADRs (parent or child).
+{% endif %}
+
+## Stakeholders
+{% if stakeholders %}
+{% for s in stakeholders %}
+- {{ s }}
+{% endfor %}
+{% else %}
+- **Architecture Lead** — Primary reviewer
+- **Author** — Owner
+- **Engineering/SRE/Security** — Reviewers
+- **Product Owner** — Business alignment
+{% endif %}
+
+## Assumptions
+{% if assumptions %}
+{% for a in assumptions %}
+- {{ a }}
+{% endfor %}
+{% else %}
+- List key assumptions underlying this decision.
+- Note any dependencies on external factors.
+{% endif %}
+
+## Next Steps
+{% if next_steps %}
+{% for step in next_steps %}
+{{ loop.index }}. {{ step }}
+{% endfor %}
+{% else %}
+1. Create Low-Level ADR(s) detailing implementation specifics.
+2. Attach diagrams and supporting documentation.
+3. Request review from stakeholders.
+4. Upon approval, update status to `Accepted` and track implementation.
+{% endif %}

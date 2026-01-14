@@ -1,0 +1,491 @@
+# ADR Builder
+
+[![CI](https://github.com/LighthouseGlobal/adr-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/LighthouseGlobal/adr-builder/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/adr-builder.svg)](https://pypi.org/project/adr-builder/)
+
+Create clear, consistent Architectural Decision Records (ADRs) from simple forms or YAML/JSON data — no coding required.
+
+- Generates Markdown ADRs using the MADR standard
+- Supports HLD (High-Level Design) and LLD (Low-Level Design) templates
+- Enforces structure and quality with built-in validation
+- Works locally via an easy CLI, or in CI via GitHub Actions
+- Stores ADRs in `docs/adr/` with automatic numbering, slugs, and an index
+
+## Table of Contents
+
+- [Who is this for?](#who-is-this-for)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Templates](#templates)
+- [HLD and LLD Templates](#hld-and-lld-templates)
+- [CI Integration](#ci-integration)
+- [Troubleshooting](#troubleshooting)
+- [For Developers](#for-developers)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Who is this for?
+
+- Engineers, product managers, and stakeholders who need to record decisions
+- Teams standardizing how ADRs are written and stored
+- Anyone who wants a guided, non-technical way to produce ADRs
+
+---
+
+## Quick Start
+
+### Option A: Interactive Flow (Recommended)
+
+```bash
+# Install (one-time)
+pipx install adr-builder
+
+# In your project folder
+adr init    # Sets up docs/adr/ and defaults
+adr new     # Guided prompts to create an ADR
+```
+
+### Option B: From a YAML File
+
+1. Create `criteria.yaml`:
+
+```yaml
+title: Database Selection
+status: Proposed
+authors: ["Jane Doe"]
+tags: ["data", "persistence"]
+context:
+  background: "We need a primary OLTP database."
+  constraints:
+    - "Managed service"
+    - "RTO <= 15m"
+  drivers:
+    - "Global availability"
+    - "Operational simplicity"
+options:
+  - name: "PostgreSQL (AWS RDS)"
+    pros: ["Mature ecosystem", "Managed backups"]
+    cons: ["Vertical scaling limits"]
+    risks: ["Cost at high scale"]
+    score: 8
+  - name: "CockroachDB Serverless"
+    pros: ["Horizontal scale", "Strong consistency"]
+    cons: ["Learning curve"]
+    risks: ["Pricing predictability"]
+    score: 7
+decision:
+  chosen: "PostgreSQL (AWS RDS)"
+  rationale: "Best balance of maturity and ops simplicity."
+consequences:
+  positive: ["Familiar tooling", "Reduced ops overhead"]
+  negative: ["Limited horizontal scale"]
+references:
+  links:
+    - "https://adr.github.io/madr/"
+```
+
+2. Generate your ADR:
+
+```bash
+adr generate --input criteria.yaml
+```
+
+3. Find your ADRs in `docs/adr/` (e.g., `001-database-selection.md` and `.docx`)
+
+### Option C: In Pull Requests (GitHub Action)
+
+Add a CI workflow to automatically generate ADRs from criteria files. See [CI Integration](#ci-integration) below.
+
+---
+
+## Installation
+
+### Requirements
+
+- Python 3.9+ (or use Docker)
+
+### Install with pipx (Recommended)
+
+```bash
+# macOS
+brew install pipx && pipx ensurepath
+
+# All platforms
+pipx install adr-builder
+
+# Verify installation
+adr --version
+```
+
+### Install with pip
+
+```bash
+pip install adr-builder
+```
+
+### Optional: Word Document Support
+
+```bash
+pipx install 'adr-builder[docx]'
+# or
+pip install 'adr-builder[docx]'
+```
+
+### Upgrading
+
+```bash
+pipx upgrade adr-builder
+# or
+pip install --upgrade adr-builder
+```
+
+---
+
+## Usage
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `adr init` | Initialize ADR scaffolding (`docs/adr/`, config) |
+| `adr new` | Interactive ADR creation with guided prompts |
+| `adr quick "Title"` | Quick ADR creation with minimal input |
+| `adr generate -i FILE` | Generate ADR from YAML/JSON file |
+| `adr generate -i FILE -f md` | Generate Markdown only |
+| `adr generate -i FILE -f docx` | Generate Word document only |
+| `adr generate -i FILE -t TEMPLATE` | Generate using specific template |
+| `adr validate -i FILE` | Validate criteria file structure |
+| `adr list` | List existing ADRs with numbers and slugs |
+| `adr status NUMBER [STATUS]` | View or change ADR status |
+| `adr search "keyword"` | Search across ADRs |
+| `adr --version` | Show installed version |
+
+### Configuration
+
+ADR Builder uses `.adr/adr.config.yaml` for project settings:
+
+```yaml
+# Template to use: madr (default), hld, or lld
+template: madr
+
+# Valid status values for ADRs
+status_values:
+  - Proposed
+  - Accepted
+  - Superseded
+  - Rejected
+```
+
+Run `adr init` to create this file with defaults.
+
+### Output Format
+
+| Setting | Default |
+|---------|---------|
+| Template | MADR |
+| Output formats | Markdown + Word |
+| File naming | `NNN-slug.{md,docx}` (e.g., `001-database-selection.md`) |
+| Location | `docs/adr/` |
+| Index file | `docs/adr/index.md` |
+
+### Quick ADR Creation
+
+For simple decisions that don't need a full YAML structure:
+
+```bash
+# Basic quick ADR
+adr quick "Use PostgreSQL for primary database"
+
+# With options
+adr quick "API Authentication" --status Accepted --author "Jane Doe"
+
+# With decision rationale
+adr quick "Use REST API" -d "Simpler than GraphQL for our use case"
+
+# Markdown only (no Word doc)
+adr quick "Caching Strategy" -f md
+```
+
+### Status Management
+
+Track ADR lifecycle changes:
+
+```bash
+# View current status
+adr status 001
+
+# Change status
+adr status 001 Accepted
+adr status 002 Superseded
+```
+
+### Search
+
+Find decisions across all ADRs:
+
+```bash
+# Basic search
+adr search "database"
+
+# With context lines
+adr search "PostgreSQL" --context 2
+
+# Limit results
+adr search "API" --limit 5
+```
+
+---
+
+## Templates
+
+ADR Builder ships with three built-in templates:
+
+| Template | Purpose | Audience |
+|----------|---------|----------|
+| `madr` | Standard MADR format (default) | General use |
+| `hld` | High-Level Design ADRs | Architects, leadership |
+| `lld` | Low-Level Design ADRs | Engineers, SRE, DevOps |
+
+### Using Built-in Templates
+
+```bash
+# Use the default MADR template
+adr generate --input criteria.yaml
+
+# Use the HLD template for architectural decisions
+adr generate --input criteria.yaml --template hld
+
+# Use the LLD template for implementation decisions
+adr generate --input criteria.yaml --template lld
+```
+
+Or set the default template in `.adr/adr.config.yaml`:
+
+```yaml
+template: hld  # or lld, madr
+```
+
+### Custom Templates
+
+Create custom templates using Jinja2:
+
+```bash
+adr generate --input criteria.yaml --template path/to/template.md.j2
+```
+
+---
+
+## HLD and LLD Templates
+
+For organizations with formal architecture review processes, ADR Builder supports a two-tier ADR structure:
+
+- **HLD (High-Level Design)**: Strategic, architect-driven decisions about domains, patterns, and principles
+- **LLD (Low-Level Design)**: Implementation-focused, engineer-driven decisions about specific technologies and configurations
+
+### When to Use Each Template
+
+| Use HLD When... | Use LLD When... |
+|-----------------|-----------------|
+| Defining system domains and boundaries | Specifying infrastructure and services |
+| Choosing architectural patterns | Selecting specific technologies |
+| Setting guiding principles | Defining operational configurations |
+| Evaluating strategic alternatives | Documenting security controls |
+| Establishing governance processes | Planning rollout and testing |
+
+### Template Sections
+
+**HLD Template:**
+- Context and Problem Statement (with drivers and constraints)
+- Decision and Rationale
+- Alternatives Considered
+- Consequences / Implications
+- Stakeholders and Assumptions
+- Next Steps
+
+**LLD Template:**
+- Context (links to parent HLD)
+- Decision Summary and Detailed Rationale
+- Component Design & Diagrams
+- Configuration & Operational Details
+- Security Considerations
+- Testing / Validation
+- Rollout & Rollback Plan
+
+### Examples and Full Documentation
+
+- **Full guide**: [`docs/HLD-LLD-GUIDE.md`](docs/HLD-LLD-GUIDE.md)
+- **HLD example**: [`examples/hld-criteria.yaml`](examples/hld-criteria.yaml)
+- **LLD example**: [`examples/lld-criteria.yaml`](examples/lld-criteria.yaml)
+
+### Parent-Child ADR Linking
+
+LLD ADRs can reference their parent HLD:
+
+```yaml
+# In LLD criteria
+parent_adr: "ADR-20260106-01 (Platform v1 — High-Level Architecture)"
+```
+
+HLD ADRs can reference child LLDs:
+
+```yaml
+# In HLD criteria
+references:
+  related_adrs:
+    - "ADR-20260106-02 (LLD - Implementation)"
+```
+
+---
+
+## CI Integration
+
+Add `.github/workflows/adr.yml` to automatically generate ADRs on pull requests:
+
+```yaml
+name: ADR
+on:
+  pull_request:
+    paths:
+      - 'criteria/*.yaml'
+jobs:
+  build-adr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      - run: pipx install adr-builder
+      - run: adr init
+      - run: adr generate --input criteria/main.yaml
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(adr): generate ADR from criteria"
+```
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `Command not found: adr` | Run `pipx ensurepath`, then open a new terminal |
+| `Python not found` | Install Python 3.9+ |
+| Validation errors | Run `adr validate --input criteria.yaml` to see details |
+| Word output fails | Install with `pipx install 'adr-builder[docx]'` |
+
+---
+
+## For Developers
+
+### Project Structure
+
+```
+adr-builder/
+├── adr_builder/
+│   ├── __init__.py      # Version info
+│   ├── cli.py           # Typer CLI commands
+│   ├── config.py        # Configuration loading
+│   ├── fs.py            # File system utilities
+│   ├── generator.py     # ADR rendering (Jinja2)
+│   ├── models.py        # Pydantic data models
+│   ├── validator.py     # Input validation
+│   └── templates/       # Jinja2 templates
+│       ├── madr.md.j2
+│       ├── hld.md.j2
+│       └── lld.md.j2
+├── tests/               # pytest test suite
+├── examples/            # Example criteria files
+├── docs/                # Documentation
+└── .github/workflows/   # CI/CD pipelines
+```
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/LighthouseGlobal/adr-builder.git
+cd adr-builder
+
+# Install in development mode with dev dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+pytest                      # Run all tests
+pytest -v                   # Verbose output
+pytest --cov=adr_builder    # With coverage report
+pytest tests/test_cli.py    # Run specific test file
+```
+
+### Code Quality
+
+```bash
+ruff check adr_builder/     # Linting
+mypy adr_builder/           # Type checking
+```
+
+### CI Pipeline
+
+The repository uses GitHub Actions for continuous integration:
+
+**CI Workflow** (`.github/workflows/ci.yml`) — Runs on all PRs and pushes to main:
+- Linting with ruff
+- Type checking with mypy
+- Tests across Python 3.9, 3.10, 3.11, 3.12
+- Package build verification
+
+**Publish Workflow** (`.github/workflows/publish.yml`) — Runs on version tags:
+- Builds the package
+- Publishes to PyPI
+
+### Release Process
+
+1. Bump version in `pyproject.toml` and `adr_builder/__init__.py`
+2. Commit the change:
+   ```bash
+   git add pyproject.toml adr_builder/__init__.py
+   git commit -m "chore(release): bump version to X.Y.Z"
+   git push origin main
+   ```
+3. Create and push a version tag:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+4. The Publish workflow will automatically build and publish to PyPI
+5. Verify at https://pypi.org/project/adr-builder/
+
+---
+
+## Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create a feature branch**: `git checkout -b feature/my-feature`
+3. **Make your changes**
+4. **Run tests**: `pytest`
+5. **Run linting**: `ruff check adr_builder/`
+6. **Run type checking**: `mypy adr_builder/`
+7. **Commit** with a descriptive message
+8. **Push** and open a Pull Request
+
+All PRs trigger the CI pipeline which must pass before merging.
+
+### Reporting Issues
+
+- Use [GitHub Issues](https://github.com/LighthouseGlobal/adr-builder/issues) for bugs and feature requests
+- Include steps to reproduce for bugs
+- Check existing issues before creating new ones
+
+---
+
+## License
+
+MIT
