@@ -1,0 +1,192 @@
+# Pydantic CDP
+
+Type-safe Python client for the Chrome DevTools Protocol (CDP) with Pydantic validation.
+
+## Installation
+
+```bash
+pip install cdpify
+```
+
+## What it does
+
+This library provides Python bindings for the Chrome DevTools Protocol with full type safety through Pydantic models. All CDP domains, commands, events, and types are automatically generated from the official Chrome DevTools Protocol specifications.
+
+## Usage
+
+### Basic Connection
+
+```python
+import asyncio
+from cdpify import CDPClient
+
+async def main():
+    async with CDPClient("ws://localhost:9222/devtools/browser/...") as client:
+        # Send CDP commands
+        result = await client.send_raw(
+            method="Target.getTargets",
+            params=None
+        )
+        print(f"Targets: {result}")
+
+asyncio.run(main())
+```
+
+### Using Domain Clients
+
+Domain-specific clients provide typed methods for all CDP commands:
+
+```python
+from cdpify import CDPClient
+from cdpify.domains import PageClient, RuntimeClient
+
+async def main():
+    async with CDPClient("ws://localhost:9222/devtools/page/...") as client:
+        # Initialize domain clients
+        page = PageClient(client)
+        runtime = RuntimeClient(client)
+
+        # Navigate to a page
+        await page.navigate(url="https://example.com")
+
+        # Evaluate JavaScript
+        result = await runtime.evaluate(
+            expression="document.title",
+            return_by_value=True
+        )
+        print(f"Page title: {result.result.value}")
+
+asyncio.run(main())
+```
+
+### Event Handling
+
+Register handlers for CDP events:
+
+```python
+from cdpify import CDPClient
+from cdpify.domains import PageClient
+
+async def main():
+    client = CDPClient("ws://localhost:9222/devtools/page/...")
+    await client.connect()
+
+    # Register event handler
+    @client.on("Page.loadEventFired")
+    async def on_load(params, session_id):
+        print(f"Page loaded at timestamp: {params['timestamp']}")
+
+    # Wildcard handler for all events
+    @client.on()
+    async def on_any_event(params, session_id):
+        print(f"Event received: {params}")
+
+    page = PageClient(client)
+    await page.enable()
+    await page.navigate(url="https://example.com")
+
+    await asyncio.sleep(5)
+    await client.disconnect()
+
+asyncio.run(main())
+```
+
+### Configuration
+
+```python
+client = CDPClient(
+    url="ws://localhost:9222/devtools/browser/...",
+    additional_headers={"Authorization": "Bearer token"},
+    max_frame_size=100 * 1024 * 1024,  # 100MB
+    default_timeout=30.0  # seconds
+)
+```
+
+## Available Domain Clients
+
+All CDP domains are available as typed clients:
+
+- `PageClient` - Page lifecycle, navigation, screenshots
+- `RuntimeClient` - JavaScript execution, console, objects
+- `NetworkClient` - Network monitoring, request interception
+- `DOMClient` - DOM tree access and manipulation
+- `DebuggerClient` - JavaScript debugging
+- `EmulationClient` - Device emulation, geolocation
+- `PerformanceClient` - Performance metrics
+- `SecurityClient` - Security state, certificates
+- And 40+ more domains...
+
+Import them from the root package:
+
+```python
+from cdpify import (
+    CDPClient,
+    PageClient,
+    NetworkClient,
+    RuntimeClient,
+    # ... all other domain clients
+)
+```
+
+## Type Safety
+
+All commands and events use Pydantic models for validation:
+
+```python
+# Parameters are validated
+await page.navigate(
+    url="https://example.com",
+    referrer="https://google.com",  # Optional parameter
+    transition_type="link"  # Validated against allowed values
+)
+
+# Return values are typed
+result = await runtime.evaluate(expression="1 + 1")
+print(result.result.value)  # Pydantic model with full IDE support
+```
+
+## Code Generation
+
+The CDP bindings are generated from the official Chrome DevTools Protocol specifications. To regenerate:
+
+```bash
+uv run python -m pydantic_cpd.generator
+```
+
+This downloads the latest protocol definitions and generates:
+- `pydantic_cpd/domains/*/types.py` - Type definitions
+- `pydantic_cpd/domains/*/commands.py` - Command parameters and results
+- `pydantic_cpd/domains/*/events.py` - Event definitions
+- `pydantic_cpd/domains/*/library.py` - Domain client classes
+
+## Project Structure
+
+```
+pydantic_cpd/
+├── client.py           # Core CDP WebSocket client
+├── events.py           # Event dispatcher
+├── exceptions.py       # CDP exceptions
+├── domains/           # Generated CDP bindings
+│   ├── page/
+│   ├── runtime/
+│   ├── network/
+│   └── ... (42 domains)
+└── generator/         # Code generation tools
+```
+
+## Requirements
+
+- Python 3.14+
+- pydantic >= 2.12
+- websockets >= 15.0
+- httpx >= 0.28
+
+
+## Inspiration
+
+The idea for automatic code generation and the overall approach is inspired by [cdp-use](https://github.com/browser-use/cdp-use). This project adapts that concept for Python, with a slightly different API design and type system using Pydantic models.
+
+## Links
+
+- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
+- [Protocol Repository](https://github.com/ChromeDevTools/devtools-protocol)
