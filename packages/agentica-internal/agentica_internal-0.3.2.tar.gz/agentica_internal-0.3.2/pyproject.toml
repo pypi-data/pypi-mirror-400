@@ -1,0 +1,76 @@
+[project]
+name = "agentica-internal"
+dynamic = ["version"]
+description = "Internal Agentica libraries"
+requires-python = ">=3.12.0,<3.14.0"
+dependencies = [
+    "msgspec>=0.19.0",
+    "httpx>=0.28.1",
+    "trio>=0.31.0",
+    "xxhash>=3.5.0",
+    "rich>=14.1.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "typing-extensions>=4.15.0",
+]
+readme = "README.md"
+license-files = ["LICENSE", ]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://www.symbolica.ai/agentica"
+Issues = "https://github.com/symbolica-ai/agentica-issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.2.0",
+    "pytest-timeout>=2.4.0",
+    "pytest-subtests>=0.14.2",
+    "pyright>=1.1.406",
+    "vulture>=2.14",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.5",
+]
+
+[build-system]
+requires = ["setuptools>=80", "wheel", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+root = ".."
+version_scheme = "guess-next-dev"
+local_scheme = "no-local-version"
+
+[tool.uv]
+link-mode = "symlink"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    'ignore:Pickle, copy, and deepcopy support will be removed from itertools:DeprecationWarning'
+]
+addopts = "--cov=src --cov-report=html"
+
+[tool.setuptools.package-data]
+"*" = ["*.md"]
+
+[tool.vulture]
+exclude = [
+    "src/agentica_internal/warpc/**/__.py",
+    "src/agentica_internal/warpc/__preload.py",
+    "src/agentica_internal/cpython/shed/",
+    "src/agentica_internal/cpython/ex/",
+    "src/agentica_internal/testing/"
+]
+ignore_names = ["exc_tb", "codec"]
+paths = ["src/"]
+min_confidence = 80

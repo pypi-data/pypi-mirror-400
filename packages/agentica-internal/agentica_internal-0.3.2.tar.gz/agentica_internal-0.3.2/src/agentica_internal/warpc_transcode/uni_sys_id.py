@@ -1,0 +1,56 @@
+# System resources: stable negative IDs within each frame
+ATOMIC_IDS = {
+    "object": -1,
+    "string": -2,
+    "number": -3,
+    "boolean": -4,
+    "void": -10,
+    "undefined": -10,
+    "null": -10,
+}
+
+BUILTIN_UNI_IDS = {
+    # Classes
+    "Object": -1,
+    "String": -2,
+    "Number": -3,
+    "Boolean": -4,
+    "Array": -5,
+    "Map": -6,
+    "Set": -7,
+    "Function": -8,
+    "Future": -9,
+    "None": -10,
+    "Tuple": -13,
+    "Never": -14,
+    "Literal": -15,
+    "Enum": -16,
+    "TYPE": -42,
+    "ClassVar": -43,
+    # Exceptions
+    "Error": -50,
+    "AttributeError": -51,
+    "KeyError": -52,
+    "ValueError": -53,
+    "TypeError": -54,
+    # Objects
+    "console": -101,
+    "Math": -102,
+    "JSON": -103,
+    # Functions
+    "parseInt": -201,
+    "parseFloat": -202,
+    "isNaN": -203,
+    "isFinite": -204,
+    "magicRepr": -301,
+    "console.log": -302,
+    "magicStackTrace": -303,
+    "magicLen": -304,
+    "magicKeys": -305,
+    "Object.entries": -401,
+    "Object.keys": -402,
+    "Object.is": -403,
+    "Reflect.getPrototypeOf": -501,
+    "Reflect.isExtensible": -502,
+    "Reflect.has": -503,
+}
