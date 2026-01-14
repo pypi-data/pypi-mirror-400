@@ -1,0 +1,544 @@
+# tlshttp
+
+Modern Python wrapper for [tls-client](https://github.com/bogdanfinn/tls-client) with an httpx-like API and browser TLS fingerprinting.
+
+[![PyPI version](https://img.shields.io/pypi/v/tlshttp.svg)](https://pypi.org/project/tlshttp/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/tlshttp.svg)](https://pypi.org/project/tlshttp/)
+
+## Features
+
+- **httpx-like API** - Familiar `Client`/`AsyncClient` pattern
+- **Browser TLS fingerprinting** - 50+ profiles (Chrome, Firefox, Safari, Opera)
+- **Auto-download binaries** - No manual setup required
+- **True async support** - Using anyio (works with asyncio and trio)
+- **Fixes common wrapper bugs**:
+  - `cookies.clear()` actually works
+  - No memory leaks (proper cleanup with context managers)
+  - Case-insensitive headers (RFC 7230 compliant)
+
+## Installation
+
+```bash
+pip install tlshttp
+```
+
+Or with uv:
+
+```bash
+uv add tlshttp
+```
+
+---
+
+## Quick Start
+
+### Synchronous
+
+```python
+import tlshttp
+
+with tlshttp.Client() as client:
+    response = client.get("https://httpbin.org/get")
+    print(response.json())
+```
+
+### Asynchronous
+
+```python
+import asyncio
+import tlshttp
+
+async def main():
+    async with tlshttp.AsyncClient() as client:
+        response = await client.get("https://httpbin.org/get")
+        print(response.json())
+
+asyncio.run(main())
+```
+
+---
+
+## Client Configuration
+
+```python
+client = tlshttp.Client(
+    # Browser fingerprint profile
+    profile="chrome_120",  # Default
+
+    # Request defaults
+    timeout=30.0,
+    follow_redirects=True,
+
+    # Proxy support
+    proxy="http://user:pass@proxy.example.com:8080",
+
+    # TLS settings
+    verify=True,  # Verify SSL certificates
+    http2=True,   # Enable HTTP/2
+
+    # Default headers for all requests
+    headers={"User-Agent": "MyApp/1.0"},
+
+    # Default cookies
+    cookies={"session": "abc123"},
+
+    # Base URL for relative paths
+    base_url="https://api.example.com",
+)
+```
+
+---
+
+## HTTP Methods
+
+All standard HTTP methods are supported:
+
+```python
+with tlshttp.Client() as client:
+    # GET
+    response = client.get("https://httpbin.org/get")
+
+    # POST with JSON
+    response = client.post(
+        "https://httpbin.org/post",
+        json={"key": "value"}
+    )
+
+    # POST with form data
+    response = client.post(
+        "https://httpbin.org/post",
+        data={"username": "john", "password": "secret"}
+    )
+
+    # PUT
+    response = client.put(
+        "https://httpbin.org/put",
+        json={"updated": True}
+    )
+
+    # PATCH
+    response = client.patch(
+        "https://httpbin.org/patch",
+        json={"field": "new_value"}
+    )
+
+    # DELETE
+    response = client.delete("https://httpbin.org/delete")
+
+    # HEAD
+    response = client.head("https://httpbin.org/get")
+
+    # OPTIONS
+    response = client.options("https://httpbin.org/get")
+```
+
+---
+
+## Request Parameters
+
+### Query Parameters
+
+```python
+response = client.get(
+    "https://httpbin.org/get",
+    params={"page": 1, "limit": 10}
+)
+# Requests: https://httpbin.org/get?page=1&limit=10
+```
+
+### Headers
+
+```python
+response = client.get(
+    "https://httpbin.org/headers",
+    headers={"Authorization": "Bearer token123"}
+)
+```
+
+### JSON Body
+
+```python
+response = client.post(
+    "https://httpbin.org/post",
+    json={"message": "Hello", "count": 42}
+)
+```
+
+### Form Data
+
+```python
+response = client.post(
+    "https://httpbin.org/post",
+    data={"username": "john", "password": "secret"}
+)
+```
+
+### Raw Content
+
+```python
+response = client.post(
+    "https://httpbin.org/post",
+    content=b"raw bytes here"
+)
+```
+
+### Timeout
+
+```python
+# Per-request timeout (overrides client default)
+response = client.get(
+    "https://httpbin.org/delay/5",
+    timeout=10.0
+)
+```
+
+### Authentication
+
+```python
+# Basic auth - httpx-style tuple
+response = client.get(
+    "https://httpbin.org/basic-auth/user/pass",
+    auth=("user", "pass")
+)
+```
+
+---
+
+## Response Object
+
+```python
+response = client.get("https://httpbin.org/get")
+
+# Status
+response.status_code      # 200
+response.is_success       # True (2xx)
+response.is_redirect      # False (3xx)
+response.is_client_error  # False (4xx)
+response.is_server_error  # False (5xx)
+response.is_error         # False (4xx or 5xx)
+
+# Content
+response.content          # Raw bytes
+response.text             # Decoded string (auto-detects encoding)
+response.json()           # Parse as JSON
+
+# Headers (case-insensitive)
+response.headers["Content-Type"]
+response.headers["content-type"]  # Same value
+response.headers.get("X-Custom", "default")
+
+# Cookies from response
+response.cookies["session_id"]
+
+# URL (final URL after redirects)
+response.url
+
+# HTTP version
+response.http_version     # "HTTP/2" or "HTTP/1.1"
+
+# Raise exception for error status codes
+response.raise_for_status()  # Raises HTTPStatusError for 4xx/5xx
+```
+
+---
+
+## Cookies
+
+### Automatic Cookie Handling
+
+Cookies are automatically stored and sent with subsequent requests:
+
+```python
+with tlshttp.Client() as client:
+    # Server sets a cookie
+    client.get("https://httpbin.org/cookies/set/session/abc123")
+
+    # Cookie is automatically sent
+    response = client.get("https://httpbin.org/cookies")
+    print(response.json())  # {"cookies": {"session": "abc123"}}
+```
+
+### Manual Cookie Management
+
+```python
+# Set cookies on client
+client.cookies["token"] = "xyz789"
+client.cookies.set("user", "john", domain="example.com")
+
+# Get cookies
+session = client.cookies.get("session")
+
+# Clear all cookies (actually works, unlike other wrappers!)
+client.cookies.clear()
+
+# Clear cookies for specific domain
+client.cookies.clear(domain="example.com")
+
+# Iterate cookies
+for name, value in client.cookies.items():
+    print(f"{name}: {value}")
+
+# Export to dict
+all_cookies = client.cookies.to_dict()
+```
+
+---
+
+## Headers
+
+### Case-Insensitive Access
+
+HTTP headers are case-insensitive per RFC 7230. tlshttp handles this correctly:
+
+```python
+from tlshttp import Headers
+
+headers = Headers({"Content-Type": "application/json"})
+
+# All of these return the same value
+headers["Content-Type"]
+headers["content-type"]
+headers["CONTENT-TYPE"]
+```
+
+### Client Default Headers
+
+```python
+client = tlshttp.Client(
+    headers={"User-Agent": "MyBot/1.0", "Accept": "application/json"}
+)
+
+# Per-request headers merge with (and override) client defaults
+response = client.get(
+    "https://httpbin.org/headers",
+    headers={"Accept": "text/html"}  # Overrides Accept, keeps User-Agent
+)
+```
+
+---
+
+## Browser Profiles
+
+tlshttp includes 50+ browser TLS fingerprint profiles that mimic real browsers:
+
+### Chrome
+
+```python
+client = tlshttp.Client(profile="chrome_120")  # Recommended default
+client = tlshttp.Client(profile="chrome_131")  # Newest
+client = tlshttp.Client(profile="chrome_103")  # Oldest supported
+```
+
+Available: `chrome_103` through `chrome_131`, plus PSK variants like `chrome_120_psk`
+
+### Firefox
+
+```python
+client = tlshttp.Client(profile="firefox_120")
+client = tlshttp.Client(profile="firefox_133")  # Newest
+client = tlshttp.Client(profile="firefox_102")  # Oldest
+```
+
+Available: `firefox_102` through `firefox_133`
+
+### Safari
+
+```python
+client = tlshttp.Client(profile="safari_16_0")
+client = tlshttp.Client(profile="safari_ios_16_0")
+client = tlshttp.Client(profile="safari_ios_17_0")
+```
+
+### Opera
+
+```python
+client = tlshttp.Client(profile="opera_89")
+client = tlshttp.Client(profile="opera_90")
+client = tlshttp.Client(profile="opera_91")
+```
+
+### List All Profiles
+
+```python
+from tlshttp.profiles import BROWSER_PROFILES
+
+for name in sorted(BROWSER_PROFILES.keys()):
+    print(name)
+```
+
+---
+
+## Async Client
+
+The `AsyncClient` has the same API as `Client`, but all methods are async:
+
+```python
+import asyncio
+import tlshttp
+
+async def main():
+    async with tlshttp.AsyncClient(profile="firefox_120") as client:
+        # Single request
+        response = await client.get("https://httpbin.org/get")
+
+        # Concurrent requests
+        urls = [
+            "https://httpbin.org/get?id=1",
+            "https://httpbin.org/get?id=2",
+            "https://httpbin.org/get?id=3",
+        ]
+
+        tasks = [client.get(url) for url in urls]
+        responses = await asyncio.gather(*tasks)
+
+        for response in responses:
+            print(response.json()["args"]["id"])
+
+asyncio.run(main())
+```
+
+### Concurrency Limit
+
+Control the maximum number of concurrent requests:
+
+```python
+# Limit to 5 concurrent requests (default: 10)
+client = tlshttp.AsyncClient(max_concurrent=5)
+```
+
+---
+
+## Proxy Support
+
+```python
+# HTTP proxy
+client = tlshttp.Client(proxy="http://proxy.example.com:8080")
+
+# With authentication
+client = tlshttp.Client(proxy="http://user:pass@proxy.example.com:8080")
+
+# SOCKS5 proxy
+client = tlshttp.Client(proxy="socks5://proxy.example.com:1080")
+```
+
+---
+
+## Error Handling
+
+```python
+import tlshttp
+
+try:
+    with tlshttp.Client(timeout=5.0) as client:
+        response = client.get("https://httpbin.org/delay/10")
+        response.raise_for_status()
+
+except tlshttp.TimeoutError:
+    print("Request timed out")
+
+except tlshttp.ConnectError:
+    print("Failed to connect")
+
+except tlshttp.HTTPStatusError as e:
+    print(f"HTTP {e.response.status_code}: {e.response.text}")
+
+except tlshttp.RequestError as e:
+    print(f"Request failed: {e}")
+```
+
+### Exception Hierarchy
+
+```
+TLSHTTPError (base)
+├── RequestError
+│   ├── ConnectError
+│   ├── TimeoutError
+│   └── ProxyError
+└── HTTPStatusError (raised by raise_for_status())
+```
+
+---
+
+## Comparison with Other Libraries
+
+| Feature | tlshttp | requests | httpx | curl_cffi | tls-client |
+|---------|---------|----------|-------|-----------|------------|
+| TLS Fingerprinting | ✅ 50+ | ❌ | ❌ | ✅ | ✅ |
+| Async Support | ✅ | ❌ | ✅ | ✅ | ❌ |
+| HTTP/2 | ✅ | ❌ | ✅ | ✅ | ✅ |
+| httpx-like API | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Cookie clear() works | ✅ | ✅ | ✅ | ✅ | ❌ |
+| No memory leaks | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Auto-download binary | ✅ | N/A | N/A | ✅ | ❌ |
+
+---
+
+## How It Works
+
+tlshttp wraps the [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client) Go library via ctypes. On first use, it automatically downloads the appropriate binary for your platform from the tls-client GitHub releases.
+
+**The Go library provides:**
+- Accurate browser TLS fingerprints (JA3, JA4, HTTP/2 settings, header order)
+- HTTP/2 and HTTP/3 support
+- Connection pooling
+
+**tlshttp adds:**
+- Pythonic httpx-like API
+- Proper memory management (context managers, weak reference finalizers)
+- Case-insensitive headers (RFC 7230)
+- True async support via anyio thread pool
+- Bug fixes for issues in other wrappers
+
+---
+
+## Platform Support
+
+| Platform | Architecture | Supported |
+|----------|--------------|-----------|
+| Linux | x86_64 | ✅ |
+| Linux | ARM64 | ✅ |
+| Linux (Alpine/musl) | x86_64 | ✅ |
+| macOS | x86_64 (Intel) | ✅ |
+| macOS | ARM64 (M1/M2/M3) | ✅ |
+| Windows | x86_64 | ✅ |
+| Windows | x86 (32-bit) | ✅ |
+
+---
+
+## Development
+
+```bash
+# Clone
+git clone https://github.com/Sekinal/tlshttp.git
+cd tlshttp
+
+# Install with dev dependencies
+uv sync --group dev
+
+# Run all tests
+uv run pytest
+
+# Skip integration tests (no network needed)
+uv run pytest -m "not integration"
+
+# Run specific test file
+uv run pytest tests/test_headers.py -v
+
+# Run with coverage
+uv run pytest --cov=tlshttp
+```
+
+---
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+This project uses binaries from [tls-client](https://github.com/bogdanfinn/tls-client) which is licensed under BSD-4-Clause.
+
+## Credits
+
+- [bogdanfinn/tls-client](https://github.com/bogdanfinn/tls-client) - The Go TLS client library
+- [httpx](https://github.com/encode/httpx) - API design inspiration
