@@ -1,0 +1,62 @@
+---
+name: Regression Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        # renovate: datasource=github-releases depName=coreruleset/coreruleset versioning=semver
+        CRS_VERSION: ['4.22.0']
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - name: "Checkout repo"
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3
+        uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+
+      - name: "Run unit tests"
+        run: |
+          uv run pytest -vs
+
+      - name: "Run crs linter tests for ${{ matrix.CRS_VERSION }}"
+        run: |
+          curl -sSL  https://github.com/coreruleset/coreruleset/archive/refs/tags/v${{ matrix.CRS_VERSION }}.tar.gz -o - | \
+           tar xzvf - \
+              --strip-components=1 \
+              --wildcards "*/rules/*" "*/tests/*" "*/crs-setup.conf.example" "*/util/*"
+
+          uv run crs-linter \
+            --debug \
+            -o github \
+            -d . \
+            -r crs-setup.conf.example \
+            -r 'rules/*.conf' \
+            -t util/APPROVED_TAGS \
+            -f util/FILENAME_EXCLUSIONS \
+            -v ${{ matrix.CRS_VERSION }} \
+            -T tests/regression/tests/ \
+            -E util/TESTS_EXCLUSIONS
