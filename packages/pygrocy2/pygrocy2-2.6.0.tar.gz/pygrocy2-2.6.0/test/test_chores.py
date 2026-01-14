@@ -1,0 +1,83 @@
+from datetime import datetime
+
+import pytest
+
+from pygrocy2.data_models.chore import AssignmentType, Chore, PeriodType
+from pygrocy2.data_models.user import User
+from pygrocy2.errors import GrocyError
+
+
+class TestChores:
+    @pytest.mark.vcr
+    def test_get_chores_valid(self, grocy):
+        chores = grocy.chores(get_details=True)
+
+        assert isinstance(chores, list)
+        assert len(chores) == 6
+        for chore in chores:
+            assert isinstance(chore, Chore)
+            assert isinstance(chore.id, int)
+            assert isinstance(chore.last_tracked_time, datetime)
+            assert isinstance(chore.next_estimated_execution_time, datetime)
+            assert isinstance(chore.name, str)
+            assert isinstance(chore.last_done_by, User)
+            assert chore.userfields is not None
+            assert isinstance(chore.userfields, (list, dict))
+
+        chore = next(chore for chore in chores if chore.id == 6)
+        assert chore.name == "Change the bed sheets"
+        assert chore.period_config == "monday"
+
+    @pytest.mark.vcr
+    def test_get_chore_details(self, grocy):
+        chore_details = grocy.chore(3)
+        assert isinstance(chore_details, Chore)
+
+        assert chore_details.name == "Take out the trash"
+        assert chore_details.assignment_type == AssignmentType.RANDOM
+        assert chore_details.last_done_by.id == 3
+        assert chore_details.period_type == PeriodType.HOURLY
+        assert chore_details.period_days is None
+        assert chore_details.period_config is None
+        assert chore_details.track_date_only is True
+        assert chore_details.rollover is False
+        assert chore_details.assignment_config == "1,2,3,4"
+        assert chore_details.next_execution_assigned_user.id == 2
+        assert chore_details.next_execution_assigned_to_user_id == 2
+        assert chore_details.userfields is None
+
+    @pytest.mark.vcr
+    def test_execute_chore_valid(self, grocy):
+        result = grocy.execute_chore(1)
+        assert not isinstance(result, GrocyError)
+
+    @pytest.mark.vcr
+    def test_execute_chore_valid_with_data(self, grocy):
+        result = grocy.execute_chore(
+            1, done_by=1, tracked_time=datetime.now(), skipped=False
+        )
+        assert not isinstance(result, GrocyError)
+
+    @pytest.mark.vcr
+    def test_execute_chore_invalid(self, grocy):
+        with pytest.raises(GrocyError) as exc_info:
+            grocy.execute_chore(1000)
+
+        error = exc_info.value
+        assert error.status_code == 400
+
+    @pytest.mark.vcr
+    def test_get_chores_filters_valid(self, grocy):
+        query_filter = ["next_execution_assigned_to_user_id=1"]
+        chores = grocy.chores(get_details=True, query_filters=query_filter)
+
+        for item in chores:
+            assert item.next_execution_assigned_to_user_id == 1
+
+    @pytest.mark.vcr
+    def test_get_chores_filters_invalid(self, grocy, invalid_query_filter):
+        with pytest.raises(GrocyError) as exc_info:
+            grocy.chores(get_details=True, query_filters=invalid_query_filter)
+
+        error = exc_info.value
+        assert error.status_code == 500
