@@ -1,0 +1,113 @@
+Metadata-Version: 2.4
+Name: sot-validator
+Version: 0.1.0
+Summary: Validator for Source of Truth (.sot) files - epistemic quality verification for AI-safe documentation
+Project-URL: Homepage, https://github.com/frmoretto/clarity-gate
+Project-URL: Repository, https://github.com/frmoretto/sot-validator
+Project-URL: Documentation, https://github.com/frmoretto/clarity-gate/blob/main/docs/FILE_FORMAT_SPEC.md
+Project-URL: Issues, https://github.com/frmoretto/clarity-gate/issues
+Author-email: Francesco Marinoni Moretto <francesco@fmmconsulting.it>
+License-Expression: CC-BY-4.0
+Keywords: ai-safety,clarity-gate,documentation,epistemic,llm,rag,sot,source-of-truth,validator,verification
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Documentation
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+
+# sot-validator
+
+Validator for Source of Truth (`.sot`) files — epistemic quality verification for AI-safe documentation.
+
+[![PyPI version](https://badge.fury.io/py/sot-validator.svg)](https://pypi.org/project/sot-validator/)
+[![License: CC BY 4.0](https://img.shields.io/badge/License-CC_BY_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by/4.0/)
+
+## What is a .sot file?
+
+A **Source of Truth** (`.sot`) file is a markdown document structured to communicate explicit confidence levels for all claims, enabling readers (human or AI) to calibrate their trust appropriately.
+
+Part of the [Clarity Gate](https://github.com/frmoretto/clarity-gate) ecosystem for epistemic quality verification.
+
+## Installation
+
+```bash
+pip install sot-validator
+```
+
+## CLI Usage
+
+```bash
+# Validate a single file
+sot-validator project.sot
+
+# Validate multiple files
+sot-validator docs/*.sot
+
+# Output as JSON
+sot-validator project.sot --json
+
+# Quiet mode (errors only)
+sot-validator project.sot -q
+```
+
+## Python API
+
+```python
+from sot_validator import validate, is_valid, detect, validate_file
+
+# Full validation with errors and warnings
+result = validate(file_content)
+print(result.valid)     # bool
+print(result.errors)    # list of ValidationError
+print(result.warnings)  # list of ValidationError
+
+# Quick check
+if is_valid(file_content):
+    print('Document passes validation')
+
+# Detect if content is .sot format
+if detect(file_content):
+    print('This appears to be a .sot file')
+
+# Validate from file path
+result = validate_file('project.sot')
+```
+
+## Validation Rules
+
+### Required Elements
+- `-- Source of Truth` header
+- `**Last Updated:**` field
+- `**Owner:**` field
+- `**Status:**` field
+- `## Verification Status` section
+
+### Warnings
+- Unqualified "VERIFIED" status (should be "with noted exceptions")
+- Estimates in Verified Data section
+- Missing staleness markers (`[STABLE]`, `[VOLATILE]`, etc.)
+
+## Related
+
+- [Clarity Gate](https://github.com/frmoretto/clarity-gate) - Pre-ingestion verification for RAG systems
+- [Source of Truth Creator](https://github.com/frmoretto/source-of-truth-creator) - Create .sot files
+- [cgd-validator](https://pypi.org/project/cgd-validator/) - Validate .cgd files
+
+## File Format Specification
+
+See the [SOT and CGD File Format Specification](https://github.com/frmoretto/clarity-gate/blob/main/docs/FILE_FORMAT_SPEC.md).
+
+## License
+
+CC BY 4.0 — Use freely with attribution.
+
+## Author
+
+Francesco Marinoni Moretto  
+GitHub: [@frmoretto](https://github.com/frmoretto)
