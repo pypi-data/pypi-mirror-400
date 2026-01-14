@@ -1,0 +1,213 @@
+# polaris-audio
+
+**polaris-audio** is a research-oriented DSP library for sound synthesis and analysis based on  
+poles, transfer functions, and state-space representations.
+
+The library focuses on explicit z-plane design, discrete-time dynamical systems,  
+and control-theoretic approaches to sound synthesis rather than fixed filter recipes.
+
+polaris-audio is designed for experimentation, analysis, and algorithmic sound construction,  
+not for real-time audio I/O or plugin development.
+
+---
+
+## Minimal example
+
+### 1. Pole-based resonator
+
+```python
+import polaris as pa
+
+fs = 48000
+n = 4096
+
+a0, a1, a2 = pa.ar2_from_parameters(fs, f0=440.0, T60=1.2)
+b0, b1, b2, _ = pa.ma2_from_attack_exp3(fs, attack_s=0.01)
+
+A, B, C, D = pa.arma22_controllable_canonical_ss(
+    b0, b1, b2,
+    a0, a1, a2,
+)
+
+u = pa.make_excitation(n, fs, kind="pluck", seed=0)
+y = pa.apply_ss_filter(u, A, B, C, D)
+y = pa.normalize(y)
+```
+
+This designs a resonant system directly from frequency and decay time,  
+excites it with a short noise burst, and simulates the resulting sound.
+
+---
+
+### 2. Sweeping pole decay
+
+```python
+import polaris as pa
+import numpy as np
+
+fs = 48000
+n = 2048
+
+for T60 in [0.2, 0.5, 1.0, 2.0]:
+    a0, a1, a2 = pa.ar2_from_parameters(fs, 440.0, T60)
+    b0, b1, b2, _ = pa.ma2_from_attack_exp3(fs, 0.01)
+
+    A, B, C, D = pa.arma22_controllable_canonical_ss(
+        b0, b1, b2,
+        a0, a1, a2,
+    )
+
+    u = pa.make_excitation(n, fs, "impulse")
+    y = pa.apply_ss_filter(u, A, B, C, D)
+
+    print(T60, y[-1])
+```
+
+This illustrates how pole radius (via T60) affects stability and decay.
+
+---
+
+### 3. Modal synthesis
+
+```python
+import polaris as pa
+import numpy as np
+
+fs = 48000
+n = 4096
+
+modes = [
+    (220.0, 2.0),
+    (440.0, 1.5),
+    (660.0, 1.0),
+]
+
+u = pa.make_excitation(n, fs, "pluck", seed=1)
+y_total = np.zeros(n)
+
+for f0, T60 in modes:
+    a0, a1, a2 = pa.ar2_from_parameters(fs, f0, T60)
+    A, B, C, D = pa.arma22_controllable_canonical_ss(
+        1.0, 0.0, 0.0,
+        a0, a1, a2,
+    )
+    y_total += pa.apply_ss_filter(u, A, B, C, D)
+
+y_total = pa.normalize(y_total)
+```
+
+This combines multiple resonant modes into a single signal.
+
+---
+
+## Core components
+
+### Pole utilities
+
+- `omega_from_f0`  
+  Convert frequency to normalized angular frequency.
+
+- `r_from_T60`  
+  Convert decay time (T60) to pole radius.
+
+- `pole_from_f0_T60`  
+  Construct a complex pole from frequency and decay.
+
+---
+
+### Transfer function design
+
+- `ar2_from_poles`  
+  Second-order AR denominator from complex poles.
+
+- `ma2_from_zeros`  
+  Second-order MA numerator from complex zeros.
+
+- `ma2_from_attack_exp3`  
+  Exponential attack excitation as MA coefficients.
+
+These functions explicitly bridge the z-plane and difference equations.
+
+---
+
+### State-space models
+
+- `arma22_controllable_canonical_ss`  
+  ARMA(2,2) system in controllable canonical form.
+
+- `ss_step`  
+  One-sample state update.
+
+- `apply_ss_filter`  
+  Apply a state-space system to a signal.
+
+All synthesis in polaris-audio is ultimately expressed as:
+
+    x[n+1] = A x[n] + B u[n]
+    y[n]   = C x[n] + D u[n]
+
+---
+
+### Excitation signals
+
+- `make_excitation`  
+  Generate impulse, noise, or pluck excitation signals.
+
+Excitation is treated as an external force applied to a system,  
+not as sound itself.
+
+---
+
+### Signal utilities
+
+- `normalize`  
+  Simple peak normalization with headroom for numerical safety.
+
+This is not a perceptual loudness normalizer.
+
+---
+
+## RBJ filters (reference)
+
+RBJ Audio EQ Cookbook formulas are provided under:
+
+    polaris.reference.rbj
+
+They are included for comparison and interoperability only.  
+RBJ filters are not the primary design method in polaris-audio.
+
+---
+
+## Design principles
+
+- Explicit z-plane and state-space representations
+- Clear separation of excitation and system dynamics
+- Deterministic, sample-by-sample simulation
+- Minimal abstractions
+- Emphasis on inspectability and research use
+
+---
+
+## Non-goals
+
+polaris-audio intentionally does not provide:
+
+- Real-time audio I/O
+- Plugin formats (VST, AU, AAX)
+- Preset-based synthesizers
+- DAW-style workflows
+- Perceptual loudness models
+
+These concerns are expected to live in higher-level systems.
+
+---
+
+## Project status
+
+- Python >= 3.10
+- Offline / non-realtime oriented
+- Research-focused
+- Experimental API
+- v0.x series may evolve
+
+polaris-audio prioritizes conceptual clarity over convenience.
