@@ -1,0 +1,83 @@
+# xlavm-lib
+
+Librería orientada a pruebas automatizadas de Python (Pytest) con Selenium y Appium. 
+
+Esta libreria se enfoca en 3 partes fundamentales:
+
+- Pruebas Visuales
+- Obtencion de accessibility id o xpath (Sin necesidad de inspeccionar elementos)
+- Reportes en Allure (Local y en Browserstack)
+
+## Instalación
+
+```bash
+pip install xlavm-lib
+```
+
+## Visual Testing
+
+1. En conftest.py:
+
+    ```PY
+    @pytest.fixture
+    def driver():
+        driver.quit()
+        from xlavm_lib import VisualTestReport
+        VisualTestReport().exec()
+    ```
+
+2. En cualquier parte donde se quiera realizar una prueba visual:
+
+    ```PY
+    from xlavm_lib import VisualTest
+    VisualTest(self.driver, 'nombre_pagina').exec()
+    ```
+
+## Get Ids
+
+1. En cualquier parte donde se quiera obtener los elements ids de una pagina:
+
+```PY
+from xlavm_lib import GetIds
+GetIds(self.driver, 'nombre_pagina').exec()
+```
+
+## Allure Reports
+
+1. En conftest.py:
+
+    ```PY
+    @pytest.fixture
+    def driver(request):
+        request.node.report = AllureReport(driver)
+        yield driver
+    
+    from xlavm_lib import AllureReport
+    # HOOKS
+    def pytest_runtest_call(item):
+        report = getattr(item, "report", None)
+        if report:
+            report.start_record_video()
+                
+    def pytest_runtest_teardown(item):
+        report = getattr(item, "report", None)
+        if report:
+            report.stop_record_video()
+    ```
+
+2. En env.py:
+
+    ```PY
+    import os
+    os.environ["BROWSERSTACK_USERNAME"] = "tu_username"
+    os.environ["BROWSERSTACK_ACCESS_KEY"] = "tu_access_key"
+    ```
+
+3. En cualquier parte donde se quiera usar el reporte:
+
+    ```PY
+    from xlavm_lib import AllureReport
+    AllureReport(driver).step("1. Ingreso credenciales validas", request.node.name) #toma pantallazo por cada paso
+    AllureReport(driver).info("este es un mensaje infomativo")
+    AllureReport(driver).error("este es un mensaje de error")
+    ```
