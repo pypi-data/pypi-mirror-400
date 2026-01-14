@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Failure Top List</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/static/classifications.css" rel="stylesheet">
+    <style>
+        /* Compensate for Bootstrap 3 to 5 migration: restore original font sizes and link colors */
+        :root {
+            font-size: 14px; /* Bootstrap 3 used 14px base, Bootstrap 5 uses 16px */
+        }
+
+        a {
+            color: #337ab7; /* Bootstrap 3 link color */
+        }
+
+        a:hover {
+            color: #23527c; /* Bootstrap 3 link hover color */
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.428571429; /* Bootstrap 3 line-height */
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 20px auto;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header-section h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header-section .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-top: 10px;
+        }
+
+        .content-section {
+            padding: 30px;
+        }
+
+        .filter-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .results-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .failure-table {
+            width: 100%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .failure-table th {
+            background: #495057;
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        .failure-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .failure-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .failure-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .rank-badge.top-3 {
+            background: linear-gradient(135deg, #f5af19 0%, #f12711 100%);
+        }
+
+        .failure-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: #dc3545;
+            color: white;
+            font-weight: 600;
+        }
+
+        .test-case-name {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.95em;
+            word-break: break-all;
+        }
+
+        .symptom-text {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            color: #6c757d;
+            max-width: 500px;
+            word-break: break-word;
+            white-space: normal;
+            overflow-wrap: break-word;
+        }
+
+        .affected-tests {
+            font-size: 0.85em;
+            color: #6c757d;
+        }
+
+        .affected-tests-toggle {
+            cursor: pointer;
+        }
+
+        .affected-tests-toggle:hover {
+            color: #495057;
+        }
+
+        .toggle-icon {
+            width: 12px;
+            margin-right: 4px;
+            transition: transform 0.2s ease;
+        }
+
+        .affected-tests-tree {
+            border-left: 2px solid #dee2e6;
+            padding-left: 12px;
+        }
+
+        .affected-test-item {
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .test-case-link {
+            font-family: 'Consolas', 'Monaco', monospace;
+            text-decoration: none;
+        }
+
+        .test-case-link:hover {
+            text-decoration: underline;
+        }
+
+        .tc-failure-count {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: #dc3545;
+            color: white;
+            font-size: 0.75em;
+            font-weight: 600;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .group-banner {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .group-banner-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .group-title-label {
+            font-size: 0.85em;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            color: #6c757d;
+            margin-bottom: 6px;
+        }
+
+        .group-banner h2 {
+            margin: 0;
+            color: #495057;
+            font-size: 1.5em;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .group-banner-links {
+            display: inline-flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .group-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .group-info-item {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            text-align: left;
+        }
+
+        .group-info-item strong {
+            display: block;
+            font-size: 0.85em;
+            text-transform: uppercase;
+            color: #667eea;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .group-info-item span {
+            color: #212529;
+            font-weight: 600;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .mode-toggle .btn {
+            flex: 1;
+        }
+
+        .mode-toggle .btn.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .expandable-row {
+            cursor: pointer;
+        }
+
+        .expanded-content {
+            display: none;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .expanded-content.show {
+            display: block;
+        }
+
+        .stack-trace-preview {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .affected-tests-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .affected-tests-list .test-item {
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header-section">
+            <h1><i class="fas fa-bug"></i> Failure Top List</h1>
+            <div class="subtitle">Analyze most common test failures and their symptoms</div>
+        </div>
+
+        <div class="content-section">
+            <div id="groupContextBanner" class="group-banner" style="display: none;">
+                <div class="group-banner-header">
+                    <div>
+                        <div class="group-title-label">Group</div>
+                        <h2 id="groupBannerTitle"></h2>
+                    </div>
+                    <div class="group-banner-links">
+                        <a id="groupRunsLink" href="#" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-list"></i> Test Runs
+                        </a>
+                        <a id="groupAnalyzerLink" href="#" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-chart-line"></i> Analyzer
+                        </a>
+                        <a id="groupMatrixLink" href="#" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-table"></i> Matrix
+                        </a>
+                    </div>
+                </div>
+                <div class="group-info-grid" id="groupBannerMetadata"></div>
+            </div>
+
+            <div class="filter-section">
+                <h5 class="mb-3">
+                    <i class="fas fa-filter me-2"></i>Filters
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="clearFilters()">
+                        <i class="fas fa-times me-1"></i>Clear All
+                    </button>
+                </h5>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label for="analysisMode" class="form-label">Analysis Mode</label>
+                        <select class="form-select" id="analysisMode" onchange="loadData()">
+                            <option value="by_test_case" selected>By Test Case Name</option>
+                            <option value="by_symptom">By Symptom (Stack Trace)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="daysBackFilter" class="form-label">Time Range</label>
+                        <select class="form-select" id="daysBackFilter" onchange="loadData()">
+                            <option value="7">Last 7 days</option>
+                            <option value="30" selected>Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                            <option value="365">Last year</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="topNFilter" class="form-label">Top N Results</label>
+                        <select class="form-select" id="topNFilter" onchange="loadData()">
+                            <option value="10">Top 10</option>
+                            <option value="20" selected>Top 20</option>
+                            <option value="50">Top 50</option>
+                            <option value="100">Top 100</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">Metadata Filters</label>
+                        <div id="metadataFilters">
+                            <!-- Dynamic metadata filters will be added here -->
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="addMetadataFilter()">
+                            <i class="fas fa-plus me-1"></i>Add Filter
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <h5 class="mb-3">
+                    <i class="fas fa-list-ol me-2"></i>
+                    <span id="resultsTitle">Top Failing Test Cases</span>
+                    <button class="btn btn-sm btn-outline-primary ms-2" onclick="loadData()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <button class="btn btn-sm btn-outline-success ms-2" onclick="exportResults()">
+                        <i class="fas fa-download me-1"></i>Export CSV
+                    </button>
+                </h5>
+
+                <div id="loadingSpinner" class="loading-spinner">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+
+                <div id="noDataMessage" class="no-data" style="display: none;">
+                    <i class="fas fa-info-circle fa-3x mb-3 text-muted"></i>
+                    <p>No failure data found for the selected filters.</p>
+                </div>
+
+                <div id="resultsContainer" style="display: none;">
+                    <table class="failure-table" id="failureTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">Rank</th>
+                                <th id="nameHeader">Test Case</th>
+                                <th style="width: 100px;">Failures</th>
+                                <th style="width: 180px;">Last Failure</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failureTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/classifications.js"></script>
+    <script>
+        let currentData = [];
+        let metadataKeys = [];
+        const groupHash = new URLSearchParams(window.location.search).get('group');
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadMetadataKeys();
+            await loadGroupContext();
+            await loadData();
+            initFiltersFromURL();
+        });
+
+        async function loadGroupContext() {
+            if (!groupHash) return;
+
+            try {
+                const response = await fetch(`/api/groups/${groupHash}`);
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const group = result.data;
+                    const banner = document.getElementById('groupContextBanner');
+                    const title = document.getElementById('groupBannerTitle');
+                    const metadataGrid = document.getElementById('groupBannerMetadata');
+
+                    title.textContent = group.name || `Group ${group.hash}`;
+
+                    // Update navigation links
+                    document.getElementById('groupRunsLink').href = `/groups/${groupHash}`;
+                    document.getElementById('groupAnalyzerLink').href = `/analyzer?group=${groupHash}`;
+                    document.getElementById('groupMatrixLink').href = `/matrix?group=${groupHash}`;
+
+                    // Populate metadata
+                    if (group.metadata && Object.keys(group.metadata).length > 0) {
+                        metadataGrid.innerHTML = Object.entries(group.metadata).map(([key, value]) => `
+                            <div class="group-info-item">
+                                <strong>${key}</strong>
+                                <span>${value.url ? `<a href="${value.url}" target="_blank">${value.value || value}</a>` : (value.value || value)}</span>
+                            </div>
+                        `).join('');
+                    }
+
+                    banner.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Failed to load group context:', error);
+            }
+        }
+
+        async function loadMetadataKeys() {
+            try {
+                const response = await fetch('/api/metadata/keys');
+                const result = await response.json();
+                if (result.success) {
+                    metadataKeys = result.keys || [];
+                }
+            } catch (error) {
+                console.error('Failed to load metadata keys:', error);
+            }
+        }
+
+        function initFiltersFromURL() {
+            const params = new URLSearchParams(window.location.search);
+
+            if (params.has('mode')) {
+                document.getElementById('analysisMode').value = params.get('mode');
+            }
+            if (params.has('days')) {
+                document.getElementById('daysBackFilter').value = params.get('days');
+            }
+            if (params.has('top')) {
+                document.getElementById('topNFilter').value = params.get('top');
+            }
+
+            // Load metadata filters from URL
+            for (const [key, value] of params.entries()) {
+                if (key.startsWith('metadata.')) {
+                    const metaKey = key.replace('metadata.', '');
+                    addMetadataFilter(metaKey, value);
+                }
+            }
+        }
+
+        async function loadData() {
+            const mode = document.getElementById('analysisMode').value;
+            const daysBack = document.getElementById('daysBackFilter').value;
+            const topN = document.getElementById('topNFilter').value;
+
+            // Show loading
+            document.getElementById('loadingSpinner').style.display = 'flex';
+            document.getElementById('noDataMessage').style.display = 'none';
+            document.getElementById('resultsContainer').style.display = 'none';
+
+            // Update title based on mode
+            const resultsTitle = document.getElementById('resultsTitle');
+            const nameHeader = document.getElementById('nameHeader');
+            if (mode === 'by_symptom') {
+                resultsTitle.textContent = 'Top Failure Symptoms';
+                nameHeader.textContent = 'Symptom (First Stack Trace Line)';
+            } else {
+                resultsTitle.textContent = 'Top Failing Test Cases';
+                nameHeader.textContent = 'Test Case';
+            }
+
+            // Build query params
+            const params = new URLSearchParams();
+            params.set('mode', mode);
+            params.set('days', daysBack);
+            params.set('top', topN);
+
+            if (groupHash) {
+                params.set('group', groupHash);
+            }
+
+            // Add metadata filters
+            const metadataFilters = document.querySelectorAll('.metadata-filter');
+            metadataFilters.forEach(filter => {
+                const keySelect = filter.querySelector('select:first-of-type');
+                const valueSelect = filter.querySelector('select:last-of-type');
+                if (keySelect.value && valueSelect.value) {
+                    params.set(`metadata.${keySelect.value}`, valueSelect.value);
+                }
+            });
+
+            // Update URL
+            updateURLWithFilters();
+
+            try {
+                const response = await fetch(`/api/failures/toplist?${params.toString()}`);
+                const result = await response.json();
+
+                document.getElementById('loadingSpinner').style.display = 'none';
+
+                if (result.success && result.data && result.data.length > 0) {
+                    currentData = result.data;
+                    renderResults(result.data, mode);
+                    document.getElementById('resultsContainer').style.display = 'block';
+                } else {
+                    document.getElementById('noDataMessage').style.display = 'block';
+                    currentData = [];
+                }
+            } catch (error) {
+                console.error('Failed to load data:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('noDataMessage').style.display = 'block';
+            }
+        }
+
+        function renderResults(data, mode) {
+            const tbody = document.getElementById('failureTableBody');
+            tbody.innerHTML = '';
+
+            data.forEach((item, index) => {
+                const rank = index + 1;
+                const isTop3 = rank <= 3;
+
+                const row = document.createElement('tr');
+
+                if (mode === 'by_symptom') {
+                    const affectedTCs = item.affected_test_cases || [];
+
+                    // Build last failure link
+                    let lastFailureLink = '';
+                    if (item.last_failure_run_id && item.last_failure_test_case) {
+                        lastFailureLink = `<a href="/testRun/${item.last_failure_run_id}/log/${encodeURIComponent(item.last_failure_test_case)}.html" class="btn btn-sm btn-outline-danger" title="View last failed test">
+                            <i class="fas fa-external-link-alt"></i>
+                        </a>`;
+                    }
+
+                    row.innerHTML = `
+                        <td><span class="rank-badge ${isTop3 ? 'top-3' : ''}">${rank}</span></td>
+                        <td>
+                            <div class="symptom-text" title="${escapeHtml(item.symptom || 'Unknown')}">${escapeHtml(item.symptom || 'Unknown')}</div>
+                            <div class="affected-tests-toggle mt-1" onclick="toggleAffectedTests(event, 'affected-${index}')">
+                                <i class="fas fa-chevron-right toggle-icon" id="icon-affected-${index}"></i>
+                                <span class="text-muted" style="font-size: 0.85em; cursor: pointer;">
+                                    <i class="fas fa-vial me-1"></i>${affectedTCs.length} affected test case(s)
+                                </span>
+                            </div>
+                            <div class="affected-tests-tree" id="affected-${index}" style="display: none; margin-top: 8px; margin-left: 20px;">
+                                ${affectedTCs.map((tc, tcIndex) => {
+                                    const tcId = tc.test_case_id || tc;
+                                    const runId = tc.last_failure_run_id;
+                                    const tcCount = tc.failure_count || 1;
+                                    const countBadge = `<span class="tc-failure-count">${tcCount}</span>`;
+                                    const tcNameId = `tc-name-${index}-${tcIndex}`;
+                                    return `
+                                        <div class="affected-test-item" style="padding: 4px 0; font-size: 0.85em;">
+                                            <i class="fas fa-times-circle text-danger me-1"></i>
+                                            <span id="${tcNameId}" class="test-case-name" style="cursor: pointer;">${escapeHtml(tcId)}</span>
+                                            ${countBadge}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </td>
+                        <td><span class="failure-count">${item.failure_count}</span></td>
+                        <td><small>${formatDate(item.last_failure)}</small></td>
+                    `;
+
+                    // Setup hover history for affected test cases
+                    setTimeout(() => {
+                        affectedTCs.forEach((tc, tcIndex) => {
+                            const tcId = tc.test_case_id || tc;
+                            const tcNameEl = document.getElementById(`tc-name-${index}-${tcIndex}`);
+                            if (tcNameEl && typeof Classifications !== 'undefined') {
+                                Classifications.setupBadgeHistoryHoverAsync(tcNameEl, tcId, groupHash || null, null);
+                            }
+                        });
+                    }, 100);
+                } else {
+                    const tcNameId = `tc-name-${index}`;
+                    row.innerHTML = `
+                        <td><span class="rank-badge ${isTop3 ? 'top-3' : ''}">${rank}</span></td>
+                        <td><span id="${tcNameId}" class="test-case-name" style="cursor: pointer;">${escapeHtml(item.test_case_id)}</span></td>
+                        <td><span class="failure-count">${item.failure_count}</span></td>
+                        <td><small>${formatDate(item.last_failure)}</small></td>
+                    `;
+
+                    // Setup hover history for test case name
+                    setTimeout(() => {
+                        const tcNameEl = document.getElementById(tcNameId);
+                        if (tcNameEl && typeof Classifications !== 'undefined') {
+                            Classifications.setupBadgeHistoryHoverAsync(tcNameEl, item.test_case_id, groupHash || null, null);
+                        }
+                    }, 100);
+                }
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function toggleAffectedTests(event, id) {
+            event.stopPropagation();
+            const tree = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id);
+
+            if (tree.style.display === 'none') {
+                tree.style.display = 'block';
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                tree.style.display = 'none';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
+
+        function addMetadataFilter(key = '', value = '') {
+            const container = document.getElementById('metadataFilters');
+            const filterDiv = document.createElement('div');
+            filterDiv.className = 'metadata-filter d-flex gap-2 mb-2';
+            filterDiv.innerHTML = `
+                <select class="form-select" onchange="loadMetadataValues(this)">
+                    <option value="">Select key</option>
+                    ${metadataKeys.map(k => `<option value="${k}" ${k === key ? 'selected' : ''}>${k}</option>`).join('')}
+                </select>
+                <select class="form-select" ${key ? '' : 'disabled'} onchange="loadData()">
+                    <option value="">Select value</option>
+                    ${key && value ? `<option value="${value}" selected>${value}</option>` : ''}
+                </select>
+                <button class="btn btn-outline-danger" type="button" onclick="removeMetadataFilter(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(filterDiv);
+
+            if (key) {
+                loadMetadataValues(filterDiv.querySelector('select:first-of-type'), value);
+            }
+        }
+
+        async function loadMetadataValues(selectElement, preselectedValue = '') {
+            const key = selectElement.value;
+            const valueSelect = selectElement.parentElement.querySelector('select:last-of-type');
+
+            if (!key) {
+                valueSelect.innerHTML = '<option value="">Select value</option>';
+                valueSelect.disabled = true;
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/metadata/values?key=${encodeURIComponent(key)}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    valueSelect.innerHTML = '<option value="">Select value</option>' +
+                        result.values.map(v => `<option value="${v}" ${v === preselectedValue ? 'selected' : ''}>${v}</option>`).join('');
+                    valueSelect.disabled = false;
+                }
+            } catch (error) {
+                console.error('Failed to load metadata values:', error);
+            }
+        }
+
+        function removeMetadataFilter(button) {
+            button.parentElement.remove();
+            loadData();
+        }
+
+        function clearFilters() {
+            document.getElementById('analysisMode').value = 'by_test_case';
+            document.getElementById('daysBackFilter').value = '30';
+            document.getElementById('topNFilter').value = '20';
+            document.getElementById('metadataFilters').innerHTML = '';
+            loadData();
+        }
+
+        function updateURLWithFilters() {
+            const url = new URL(window.location);
+            url.search = '';
+
+            const mode = document.getElementById('analysisMode').value;
+            const daysBack = document.getElementById('daysBackFilter').value;
+            const topN = document.getElementById('topNFilter').value;
+
+            if (mode !== 'by_test_case') {
+                url.searchParams.set('mode', mode);
+            }
+            if (daysBack !== '30') {
+                url.searchParams.set('days', daysBack);
+            }
+            if (topN !== '20') {
+                url.searchParams.set('top', topN);
+            }
+
+            if (groupHash) {
+                url.searchParams.set('group', groupHash);
+            }
+
+            // Add metadata filters
+            const metadataFilters = document.querySelectorAll('.metadata-filter');
+            metadataFilters.forEach(filter => {
+                const keySelect = filter.querySelector('select:first-of-type');
+                const valueSelect = filter.querySelector('select:last-of-type');
+                if (keySelect.value && valueSelect.value) {
+                    url.searchParams.set(`metadata.${keySelect.value}`, valueSelect.value);
+                }
+            });
+
+            window.history.replaceState({}, '', url);
+        }
+
+        function exportResults() {
+            if (!currentData || currentData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const mode = document.getElementById('analysisMode').value;
+            let csv = '';
+
+            if (mode === 'by_symptom') {
+                csv = 'Rank,Symptom,Failure Count,Affected Test Cases,Last Failure\n';
+                currentData.forEach((item, index) => {
+                    csv += `${index + 1},"${(item.symptom || '').replace(/"/g, '""')}",${item.failure_count},"${(item.affected_test_cases || []).join('; ')}","${item.last_failure}"\n`;
+                });
+            } else {
+                csv = 'Rank,Test Case,Failure Count,Last Failure\n';
+                currentData.forEach((item, index) => {
+                    csv += `${index + 1},"${item.test_case_id.replace(/"/g, '""')}",${item.failure_count},"${item.last_failure}"\n`;
+                });
+            }
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `failure_toplist_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleString();
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
