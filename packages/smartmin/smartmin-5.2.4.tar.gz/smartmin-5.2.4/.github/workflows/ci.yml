@@ -1,0 +1,78 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    name: Test
+    strategy:
+      matrix:
+        python-version: ["3.12.x", "3.13.x", "3.14.x"]
+        django-version: ["5.1.15", "5.2.9"]
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: smartmin
+          POSTGRES_USER: smartmin
+          POSTGRES_PASSWORD: nyaruka
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Initialize environment
+        run: |
+          uv sync --extra dev
+          uv pip install django~=${{ matrix.django-version }}
+
+      - name: Run pre-test checks
+        run: uv run ./code_check.py --debug
+
+      - name: Run tests
+        run: |
+          uv run coverage run manage.py test smartmin test_runner --verbosity=2
+          uv run coverage report -i
+          uv run coverage xml
+
+      - name: Upload coverage
+        if: success()
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+
+  release:
+    name: Release
+    needs: [test]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.x"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Publish release
+        run: |
+          uv build
+          uv publish --token ${{ secrets.PYPI_TOKEN }}
