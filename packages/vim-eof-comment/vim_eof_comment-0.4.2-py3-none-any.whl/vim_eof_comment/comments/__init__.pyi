@@ -1,0 +1,5 @@
+from . import generator as generator
+
+__all__ = ['generator']
+
+# vim: set ts=4 sts=4 sw=4 et ai si sta:
