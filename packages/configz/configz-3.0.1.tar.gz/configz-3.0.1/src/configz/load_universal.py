@@ -1,0 +1,373 @@
+from __future__ import annotations
+
+import configparser
+import logging
+import os
+import re
+from typing import TYPE_CHECKING, Any, get_args, overload
+
+import upath
+from upathtools import to_upath
+
+from configz import consts, deepmerge, exceptions, typedefs, verify
+
+
+if TYPE_CHECKING:
+    from upath.types import JoinablePathLike
+
+logger = logging.getLogger(__name__)
+
+ENV_VAR_PATTERN = re.compile(r"\{env:([^:}]+)(?::([^}]*))?\}")
+
+
+def _resolve_inherit(
+    data: Any,
+    base_dir: JoinablePathLike | None,
+    mode: typedefs.SupportedFormats,
+    inherit_from: list[str] | str | None = None,
+) -> Any:
+    """Resolve INHERIT directive in YAML data.
+
+    Args:
+        data: The loaded YAML data
+        base_dir: Directory to resolve inherited paths from
+        mode: YAML loader mode or YAML loader class
+        inherit_from: Additional paths to inherit from. These form the base layer,
+                      meaning explicit INHERIT directives in the file take precedence.
+
+    Returns:
+        Merged configuration data
+    """
+    if not isinstance(data, dict) or base_dir is None:
+        return data
+
+    parent_path = data.pop("INHERIT", None)
+
+    # Build combined inheritance chain: inherit_from is base, INHERIT has priority
+    file_paths: list[str] = []
+
+    # Add inherit_from first (processed last = true base layer)
+    if inherit_from:
+        if isinstance(inherit_from, str):
+            file_paths.append(inherit_from)
+        else:
+            file_paths.extend(inherit_from)
+
+    # Add explicit INHERIT paths (higher priority, processed earlier)
+    if parent_path:
+        if isinstance(parent_path, str):
+            file_paths.append(parent_path)
+        else:
+            file_paths.extend(parent_path)
+
+    if not file_paths:
+        return data
+
+    base_dir = to_upath(base_dir)
+    context = deepmerge.DeepMerger()
+    # Process inheritance in reverse order (last file is base configuration)
+    for p_path in reversed(file_paths):
+        parent_cfg = (
+            base_dir / p_path if not upath.UPath(p_path).is_absolute() else upath.UPath(p_path)
+        )
+        logger.debug("Loading parent configuration file %r relative to %r", parent_cfg, base_dir)
+        parent_data = load_file(parent_cfg, mode=mode, resolve_inherit=True)
+        data = context.merge(data, parent_data)
+
+    return data
+
+
+def _resolve_env_vars(data: Any) -> Any:
+    """Resolve environment variables in data using {env:VAR_NAME} or {env:VAR_NAME:default} syntax.
+
+    Args:
+        data: The data structure to resolve environment variables in
+
+    Returns:
+        Data with environment variables resolved
+    """
+    if isinstance(data, str):
+
+        def replace_env(match: re.Match[str]) -> str:
+            var_name = match.group(1)
+            default_value = match.group(2) if match.lastindex == 2 else None  # noqa: PLR2004
+            return os.environ.get(var_name, default_value or match.group(0))
+
+        return ENV_VAR_PATTERN.sub(replace_env, data)
+
+    if isinstance(data, dict):
+        return {key: _resolve_env_vars(value) for key, value in data.items()}
+
+    if isinstance(data, list):
+        return [_resolve_env_vars(item) for item in data]
+
+    return data
+
+
+@overload
+def load(
+    text: str,
+    mode: typedefs.SupportedFormats,
+    verify_type: None = None,
+    resolve_inherit: bool | JoinablePathLike = False,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+    **kwargs: Any,
+) -> Any: ...
+
+
+@overload
+def load[T](
+    text: str,
+    mode: typedefs.SupportedFormats,
+    verify_type: type[T],
+    resolve_inherit: bool | JoinablePathLike = False,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+    **kwargs: Any,
+) -> T: ...
+
+
+def load[T](
+    text: str,
+    mode: typedefs.SupportedFormats,
+    verify_type: type[T] | None = None,
+    resolve_inherit: bool | JoinablePathLike = False,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+    **kwargs: Any,
+) -> Any | T:
+    """Load data from a string in the specified format.
+
+    Args:
+        text: String containing data in the specified format
+        mode: Format of the input data ("yaml", "toml", "json", or "ini")
+        verify_type: Type to verify and cast the output to (supports TypedDict)
+        resolve_inherit: Whether to resolve inheritance in the loaded data
+        resolve_env_vars: Whether to resolve {env:VAR_NAME} or {env:VAR_NAME:default} patterns
+        inherit_from: Additional paths to inherit from. These form the base layer,
+                      meaning explicit INHERIT directives in the file take precedence.
+        **kwargs: Additional keyword arguments passed to the underlying load functions
+
+    Returns:
+        Parsed data structure, typed according to verify_type if provided
+
+    Raises:
+        ValueError: If the format is not supported
+        ParsingError: If the text cannot be parsed in the specified format
+        TypeError: If verify_type is provided and the loaded data doesn't match
+
+    Example:
+        ```python
+        from typing import TypedDict
+
+        class Config(TypedDict):
+            name: str
+            port: int
+
+        # Without type verification
+        data = load("key: value", mode="yaml")
+
+        # With TypedDict verification
+        config = load('{"name": "test", "port": 8080}', mode="json", verify_type=Config)
+        ```
+    """
+    match mode:
+        case "yaml":
+            from yaml import YAMLError
+
+            from configz.yaml_tools.yaml_loaders import load_yaml
+
+            try:
+                data = load_yaml(text, **kwargs)
+            except YAMLError as e:
+                logger.exception("Failed to load YAML data")
+                msg = f"Failed to parse YAML data: {e}"
+                raise exceptions.ParsingError(msg, e) from e
+
+        case "toml":
+            import tomllib
+
+            try:
+                data = tomllib.loads(text, **kwargs)
+            except tomllib.TOMLDecodeError as e:
+                logger.exception("Failed to load TOML data")
+                msg = f"Failed to parse TOML data: {e}"
+                raise exceptions.ParsingError(msg, e) from e
+
+        case "json":
+            import configz
+
+            try:
+                data = configz.load_json(text, **kwargs)
+            except configz.JsonLoadError as e:
+                logger.exception("Failed to load JSON data with json")
+                msg = f"Failed to parse JSON data: {e}"
+                raise exceptions.ParsingError(msg, e) from e
+
+        case "ini":
+            try:
+                parser = configparser.ConfigParser(**kwargs)
+                parser.read_string(text)
+                data = {section: dict(parser.items(section)) for section in parser.sections()}
+            except (
+                configparser.Error,
+                configparser.ParsingError,
+                configparser.MissingSectionHeaderError,
+            ) as e:
+                logger.exception("Failed to load INI data")
+                msg = f"Failed to parse INI data: {e}"
+                raise exceptions.ParsingError(msg, e) from e
+
+        case _:
+            msg = f"Unsupported format: {mode}"
+            raise ValueError(msg)
+
+    if resolve_env_vars:
+        data = _resolve_env_vars(data)
+
+    if resolve_inherit or inherit_from:
+        if hasattr(text, "name"):
+            base_dir = upath.UPath(text.name).parent  # pyright: ignore[reportAttributeAccessIssue]
+        elif resolve_inherit is not None and not isinstance(resolve_inherit, bool):
+            base_dir = to_upath(resolve_inherit)
+        else:
+            base_dir = None
+        if base_dir or inherit_from:
+            data = _resolve_inherit(data, base_dir, mode=mode, inherit_from=inherit_from)
+
+    if verify_type is not None:
+        try:
+            return verify.verify_type(data, verify_type)
+        except TypeError as e:
+            msg = f"Data loaded from {mode} format doesn't match expected type: {e}"
+            raise TypeError(msg) from e
+    return data
+
+
+@overload
+def load_file(
+    path: JoinablePathLike,
+    mode: typedefs.FormatType = "auto",
+    *,
+    storage_options: dict[str, Any] | None = None,
+    verify_type: None = None,
+    resolve_inherit: bool = True,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+) -> Any: ...
+
+
+@overload
+def load_file[T](
+    path: JoinablePathLike,
+    mode: typedefs.FormatType = "auto",
+    *,
+    storage_options: dict[str, Any] | None = None,
+    verify_type: type[T],
+    resolve_inherit: bool = True,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+) -> T: ...
+
+
+def load_file[T](
+    path: JoinablePathLike,
+    mode: typedefs.FormatType = "auto",
+    *,
+    storage_options: dict[str, Any] | None = None,
+    verify_type: type[T] | None = None,
+    resolve_inherit: bool = True,
+    resolve_env_vars: bool = False,
+    inherit_from: list[str] | str | None = None,
+) -> Any | T:
+    """Load data from a file, automatically detecting the format from extension if needed.
+
+    Args:
+        path: Path to the file to load
+        mode: Format of the file ("yaml", "toml", "json", "ini" or "auto")
+        storage_options: Additional keyword arguments to pass to the fsspec backend
+        verify_type: Type to verify and cast the output to (supports TypedDict)
+        resolve_inherit: Whether to resolve inheritance in the loaded data
+        resolve_env_vars: Whether to resolve {env:VAR_NAME} or {env:VAR_NAME:default} patterns
+        inherit_from: Additional paths to inherit from. These form the base layer,
+                      meaning explicit INHERIT directives in the file take precedence.
+
+    Returns:
+        Parsed data structure, typed according to verify_type if provided
+
+    Raises:
+        ValueError: If the format cannot be determined or is not supported
+        OSError: If the file cannot be read
+        FileNotFoundError: If the file does not exist
+        PermissionError: If file permissions prevent reading
+        ParsingError: If the text cannot be parsed in the specified format
+        TypeError: If verify_type is provided and the loaded data doesn't match
+
+    Example:
+        ```python
+        from typing import TypedDict
+
+        class ServerConfig(TypedDict):
+            host: str
+            port: int
+            debug: bool
+
+        # Auto-detect format and return as Any
+        data = load_file("config.yml")
+
+        # Specify format and verify as TypedDict
+        config = load_file(
+            "config.json",
+            mode="json",
+            verify_type=ServerConfig
+        )
+        ```
+    """
+    import upath
+
+    p = os.fspath(path) if isinstance(path, os.PathLike) else path
+
+    path_obj = upath.UPath(p, **storage_options or {})
+
+    # Determine format from extension if auto mode
+    if mode == "auto":
+        ext = path_obj.suffix.lower()
+        detected_mode = consts.FORMAT_MAPPING.get(ext)
+        if detected_mode is None:
+            msg = f"Could not determine format from file extension: {path}"
+            raise ValueError(msg)
+        mode = detected_mode
+
+    # At this point, mode can't be "auto"
+    if mode not in get_args(typedefs.SupportedFormats):
+        msg = f"Unsupported format: {mode}"
+        raise ValueError(msg)
+
+    try:
+        text = path_obj.read_text(encoding="utf-8")
+        data = load(text, mode, verify_type=verify_type, resolve_env_vars=resolve_env_vars)
+        if resolve_inherit or inherit_from:
+            data = _resolve_inherit(data, path_obj.parent, mode=mode, inherit_from=inherit_from)
+    except (OSError, FileNotFoundError, PermissionError) as e:
+        logger.exception("Failed to read file %r", path)
+        msg = f"Failed to read file {path}: {e!s}"
+        raise
+    except Exception as e:
+        logger.exception("Failed to load file %r as %s", path, mode)
+        msg = f"Failed to load {path} as {mode} format: {e!s}"
+        raise
+    else:
+        return data
+
+
+if __name__ == "__main__":
+    from typing import TypedDict
+
+    class Config(TypedDict):
+        host: str
+        port: int
+        debug: bool
+
+    json_str = '{"host": "localhost", "port": 8080, "debug": true}'
+    config = load(json_str, mode="json", verify_type=Config)
