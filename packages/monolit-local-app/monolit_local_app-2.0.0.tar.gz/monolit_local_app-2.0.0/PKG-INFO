@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: monolit_local_app
+Version: 2.0.0
+Summary: Simple package for fast writing local sites and desktop apps, with html, css and javascript
+Home-page: https://github.com/arseniylazarev7-ctrl/Monolit
+Download-URL: https://github.com/arseniylazarev7-ctrl/Monolit/archive/v2.0.0.zip
+Author: Ars2011
+Author-email: arseniylazarev2011@yandex.ru
+License: MIT
+Project-URL: Documentation, https://github.com/arseniylazarev7-ctrl/Monolit/blob/main/README.md
+Project-URL: Source, https://github.com/arseniylazarev7-ctrl/Monolit
+Keywords: web,desktop,application,framework,local
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Software Development :: Build Tools
+Classifier: Topic :: Software Development :: Libraries :: Application Frameworks
+Classifier: Topic :: Software Development :: User Interfaces
+Classifier: Topic :: Desktop Environment
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.7
+Description-Content-Type: text/markdown
+Requires-Dist: flask
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: download-url
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: project-url
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
+
+# Welcome to the Monolit 2.0.0 !!!
+Начиная с версии __2.0.0__ был полностью изменен подход к локальному запуску проектов на javascript. Версии __1.n.n__ были ориентированы на использование чистого html, css и js. С одной стороны это можно отметить как плюс - новичкам не нужно разбираться в сложных фронтенд технологиях. С другой стороны данная особенность не позволяла использовать API библиотеки для разработки коммерческих проектов, так как на момент начала 2026 года, каждая фирма, от стартапа до биг-тех корпарации использует широкий ряд js-библиотек для быстрого и удобного написания фронтенд-части.
+
+Но как было сказано ранее, теперь это не проблема. Почти весь код библиотеки был переписан и адаптирован под стандартные javascript технологии, такие как React, Vue или Angular. Суть этих фреймворков, в том что они берут исходный код написанный разработчиком, и путем сложных преобразований (транспиляции, компиляции и т.д.) помещают сжатый код в группу файлов. Как правило данные файлы помещаются в папку __build__, в которой дополнительно может быть создана папка __static__, для хранения статических css и js файлов. И уже с этой скомпилированной папкой, а не с исходным кодом разработчика, будет работать Monolit.
+
+И уже в этой части подход остался практически неизменным. Библиотеке все также нужно указать определенные пути (да теперь будет необходимо указать несколько), а далее по средствам Flask API, на url адрес __localhost:3000/__ (теперь при желании можно изменить), будет вернут корневой файл __index.html__. После по запросам корневого html файла будут подкючены все остальные файлы, включая изображения, шрифты и статические css и js файлы.
+
+# How to install Monolit 2.0.0
+The library can be installed using Python’s built-in package manager, pip. Simply type "pip install monolit_local_app" in your terminal, and all necessary packages will be automatically downloaded to your computer.
+
+# How to use Monolit 2.0.0
+Использование библиотеки не было координально изменено. Но начиная с версии 2.0.0 от разработчика будет требоваться чуть больше ответственности за процесс подключения скомпилированных файлов из папки __build__. Ранее было необходимо указать только путь только до папки, где лежит файл __index.html__.
+Сейчас же, разработчику необходимо ввести:
+1. Полный путь до папки __build__ (папки скомпилированного js-проекта)
+2. Полный путь до файла __index.html__ (зачастую находится в корне __build__)
+3. Полный путь до папки __static__ (также зачастую находится в корне __build__)
+
+Запустить javacript-проект с локального сервера, можно следующими способами:
+
+1. With function __run__:
+```python
+import monolit_local_app as ml
+
+if __name__ == "__main__":
+    ml.run(
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\index.html",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\static"
+        # ...
+        # You can see all aruments list in function's doc-string
+    )
+```
+The __run__ function will simply start the server host at the given (default local) address.
+
+2. With class __LocalServer__ (OOP wrapper for __run__):
+```python
+import monolit_local_app as ml
+
+class App(ml.LocalServer):
+    def process_request(self, request):
+        return ml.jsonify({"code": 200})
+                                       
+    def process_path(self, path):
+        return {
+            "home": "index.html",
+            "www": "index.html"
+        }.get(path)
+    
+if __name__ == "__main__":
+    App(
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\index.html",
+        "C:\\Users\\User\\Desktop\\Js\\react-app\\build\\static",
+    )()
+#    ^
+#    call object 'App' -> call function '__call__' -> call function 'run'
+```
+When objects inheriting from __LocalServer__ are called, their attributes will be passed as arguments to the __run__ function mentioned earlier.
+
+# The problems in Monolit 2.0.0
+Пока что в версии 2.0.0 есть одна неприятная уязвимость, это не баг, но и не фича, это сложный механизм. Библиотека Monolit использует Flask API для работы с http-запросами. И проблема заключается в том, что Flask очень критично относится к таким именам как __'static'__ и __'template'__. Это зарезервинные имена, принцип использования которых, отличавется от любых других имен. А большое количество веб-пакеров и js-технологий помещают статические файлы (зачастую css и js) в папку __static__, а саму эту папку в корень папки __build__. Из-за этого почти все запросы к статическим данным начинаются с "/static/...", а это вызывает ошибки во Flask.
+
+Для устранения упомянутой неисправности, было добавлено довольно непоротливое, костыльное, сложное и крайне условное решение. В аргументах функций __```LocalServer.__init__```__ и __run__ последний аргумент это __булевый параметр 'preprocessing'__ (default True). Данное значение отвечает за то, будет ли использован алгоритм предобработки скомпилированной папки build. Алгоритм предобработки заключается в том, что экранирует все пути, начинающиеся со __'static'__, добавляя символ __"_"__ в конце.
+
+Было:
+    ```<link href="/static/css/main.38f68f80.css" rel="stylesheet"/>```
+
+Стало:
+    ```<link href="/static_/css/main.38f68f80.css" rel="stylesheet"/>```
+
+Но как вы понимаете это очень костыльное и слабо расширяемое решение, так как структура папки __build__ так или иначе в разных js-технологиях отличается. Пока что, на версии 2.0.0 алгоритм нельзя назвать идеальным и 100% работоспособным. Мы надеемся, что данное решение уязвимости - временное, и в будущем удастся найти более гибкий и адаптивный вариант. Если вы видите странные ошибки связанные с запрашиваемыми путями, в которых фигурирует __'static'__, можете сделать следующее. Проверьте включен ли у вас режим препроцессинга. Если невключен - включите. Если включен, отключите и переименуйти папки и пути в нужных местах самостоятельно, в ручном режиме.
+
+Приносим свои извинения, за предоставляемые неудобства... :(
