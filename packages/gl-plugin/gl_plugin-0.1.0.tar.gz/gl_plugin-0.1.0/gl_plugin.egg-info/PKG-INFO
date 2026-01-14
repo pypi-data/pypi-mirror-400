@@ -1,0 +1,391 @@
+Metadata-Version: 2.4
+Name: gl-plugin
+Version: 0.1.0
+Summary: GL SDK's Plugin Architecture Implementation
+Author-email: Samuel Lusandi <samuel.lusandi@gdplabs.id>
+Requires-Python: <3.14,>=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: python-dotenv>=1.2.1
+Provides-Extra: dev
+Requires-Dist: pre-commit<4.0.0,>=3.6.2; extra == "dev"
+Requires-Dist: pytest<9.0.0,>=8.3.4; extra == "dev"
+Requires-Dist: pytest-mock<4.0.0,>=3.14.0; extra == "dev"
+Requires-Dist: pytest-asyncio<1.0.0,>=0.25.3; extra == "dev"
+Requires-Dist: coverage<8.0.0,>=7.6.10; extra == "dev"
+Requires-Dist: mypy<2.0.0,>=1.11.2; extra == "dev"
+Requires-Dist: ruff<1.0.0,>=0.9.9; extra == "dev"
+Requires-Dist: pytest-cov<6.0.0,>=5.0.0; extra == "dev"
+
+# GL Plugin
+
+**GL SDK's Plugin Architecture Implementation**
+
+A Python library that provides a robust plugin architecture with automatic dependency injection, handler-based plugin management, and environment configuration support.
+
+## Features
+
+- **Plugin Management**: Thread-safe singleton `PluginManager` for registering and managing plugins
+- **Handler System**: Abstract `PluginHandler` base class for defining plugin behavior and custom injections
+- **Dependency Injection**: Automatic service injection into plugins via type hints
+- **Configuration Service**: Built-in `ConfigService` for environment-based configuration with type conversion
+- **Async Support**: Full support for both synchronous and asynchronous plugin initialization
+
+---
+
+## Pre-requisites
+
+- **Python**: 3.11 or higher (< 3.14), Python 3.13 is recommended.
+- **Package Manager**: [uv](https://docs.astral.sh/uv/) (recommended)
+
+To install `uv`:
+
+```bash
+# Using pip
+pip install uv
+
+# Or using curl (macOS/Linux)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or using PowerShell (Windows)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+---
+
+## Setting Up
+
+### 1. Clone the Repository
+
+```bash
+git clone git@github.com:GDP-ADMIN/gl-sdk.git
+cd libs/gl-plugin
+```
+
+### 2. Install Dependencies
+
+```bash
+uv sync
+```
+
+---
+
+## Installation
+
+### As a Dependency
+
+```bash
+uv add gl-plugin
+```
+
+### For Development
+
+```bash
+git clone git@github.com:GDP-ADMIN/gl-sdk.git
+cd libs/gl-plugin
+uv sync
+```
+
+---
+
+## Quick Start
+
+### Step 1: Define a Handler
+
+Handlers define what services are available for injection and how plugins are initialized.
+
+```python
+from typing import Any, Dict, Type
+from gl_plugin.plugin.handler import PluginHandler
+
+
+class MyHandler(PluginHandler):
+    @classmethod
+    def create_injections(cls, instance: Any) -> Dict[Type, Any]:
+        return {}
+    
+    @classmethod
+    def initialize_plugin(cls, instance: Any, plugin: Any) -> None:
+        pass
+```
+
+### Step 2: Define a Plugin
+
+Plugins must specify a handler using `@Plugin.for_handler()` and define required class attributes.
+
+```python
+from gl_plugin.plugin.plugin import Plugin
+
+
+@Plugin.for_handler(MyHandler)
+class GreetingPlugin(Plugin):
+    name = "greeting_plugin"
+    description = "A greeting plugin"
+    version = "1.0.0"
+    
+    def greet(self, name: str) -> str:
+        return f"Hello, {name}!"
+```
+
+### Step 3: Register and Use
+
+```python
+from gl_plugin.plugin.manager import PluginManager
+
+
+manager = PluginManager(handlers=[MyHandler()])
+manager.register_plugin(GreetingPlugin)
+
+plugin = manager.get_plugin("greeting_plugin")
+print(plugin.greet("World"))  # Hello, World!
+```
+
+---
+
+## API Reference
+
+### PluginManager
+
+The central manager for plugin lifecycle and service injection.
+
+```python
+manager = PluginManager(
+    handlers=[...],           # List of PluginHandler instances (required)
+    global_services=[...],    # Optional list of services available to all handlers
+)
+```
+
+**Methods:**
+- `register_plugin(plugin_class, custom_initializer=None, additional_params=None)` - Register a plugin synchronously
+- `aregister_plugin(plugin_class, custom_initializer=None, additional_params=None)` - Register a plugin asynchronously
+- `get_plugin(name)` - Get a plugin by name
+- `get_plugins(handler_type=None, plugin_names=None)` - Get all plugins, optionally filtered
+- `get_handler(handler_type)` - Get a handler by type
+- `get_handlers(handler_type=None)` - Get all handlers, optionally filtered
+
+### Plugin
+
+Base class for all plugins.
+
+```python
+@Plugin.for_handler(MyHandler)
+class MyPlugin(Plugin):
+    name = "my_plugin"           # Required
+    description = "Description"  # Required  
+    version = "1.0.0"            # Required
+    
+    my_service: MyService        # Auto-injected based on type hint
+```
+
+### PluginHandler
+
+Abstract base class for defining plugin handlers.
+
+```python
+class MyHandler(PluginHandler):
+    @classmethod
+    def create_injections(cls, instance) -> Dict[Type, Any]:
+        """Return services to be injected."""
+        return {ServiceType: service_instance}
+    
+    @classmethod
+    def initialize_plugin(cls, instance, plugin) -> None:
+        """Initialize plugin after creation."""
+        pass
+    
+    @classmethod
+    async def ainitialize_plugin(cls, instance, plugin) -> None:
+        """Async initialization (optional)."""
+        pass
+```
+
+### ConfigService
+
+Built-in service for environment configuration. The `PluginManager` automatically loads `.env` files from the current directory (searching up to 3 levels).
+
+```python
+config: ConfigService
+
+config.get_string("KEY", default="default")
+config.get_int("KEY", default=0)
+config.get_float("KEY", default=0.0)
+config.get_bool("KEY", default=False)  # true/yes/1/on = True
+config.get_list("KEY", separator=",", default=[])
+
+# Required values (raises ValueError if not set)
+config.require("KEY")
+config.require_as("KEY", int)
+```
+
+---
+
+## Project Structure
+
+```
+gl-plugin/
+├── gl_plugin/
+│   ├── __init__.py
+│   ├── plugin/
+│   │   ├── manager.py      # PluginManager singleton
+│   │   ├── plugin.py       # Plugin base class with DI
+│   │   ├── handler.py      # PluginHandler abstract base
+│   │   └── registry.py     # ServiceRegistry for DI
+│   └── services/
+│       └── config.py       # ConfigService
+├── tests/
+│   └── unit_tests/
+├── pyproject.toml
+└── uv.lock
+```
+
+---
+
+## Development Commands
+
+```bash
+uv sync                                            # Install dependencies
+uv run ruff check .                                # Run linter
+uv run ruff check --fix .                          # Auto-fix lint issues
+uv run ruff format .                               # Format code
+uv run mypy gl_plugin/                             # Type checking
+uv run pytest                                      # Run all tests
+uv run pytest --cov=gl_plugin --cov-report=term-missing  # Tests with coverage
+```
+
+---
+
+## Examples
+
+### Complete Example
+
+Create a `main.py` file:
+
+```python
+"""Example demonstrating multiple plugins."""
+
+from typing import Any, Dict, Type
+
+from gl_plugin.plugin.handler import PluginHandler
+from gl_plugin.plugin.manager import PluginManager
+from gl_plugin.plugin.plugin import Plugin
+
+
+class MathHandler(PluginHandler):
+    @classmethod
+    def create_injections(cls, instance: Any) -> Dict[Type, Any]:
+        return {}
+    
+    @classmethod
+    def initialize_plugin(cls, instance: Any, plugin: Any) -> None:
+        print(f"Registered: {plugin.name}")
+
+
+@Plugin.for_handler(MathHandler)
+class AddPlugin(Plugin):
+    name = "add"
+    description = "Adds two numbers"
+    version = "1.0.0"
+    
+    def compute(self, a: int, b: int) -> int:
+        return a + b
+
+
+@Plugin.for_handler(MathHandler)
+class SubtractPlugin(Plugin):
+    name = "subtract"
+    description = "Subtracts two numbers"
+    version = "1.0.0"
+    
+    def compute(self, a: int, b: int) -> int:
+        return a - b
+
+
+def main():
+    manager = PluginManager(handlers=[MathHandler()])
+    manager.register_plugin(AddPlugin)
+    manager.register_plugin(SubtractPlugin)
+    
+    add = manager.get_plugin("add")
+    subtract = manager.get_plugin("subtract")
+    
+    print(f"5 + 3 = {add.compute(5, 3)}")
+    print(f"5 - 3 = {subtract.compute(5, 3)}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run the example:
+
+```bash
+uv run python main.py
+```
+
+Expected output:
+
+```
+Registered: add
+Registered: subtract
+5 + 3 = 8
+5 - 3 = 2
+```
+
+### Async Plugin Example
+
+```python
+import asyncio
+from typing import Any, Dict, Type
+
+from gl_plugin.plugin.handler import PluginHandler
+from gl_plugin.plugin.manager import PluginManager
+from gl_plugin.plugin.plugin import Plugin
+
+
+class AsyncService:
+    async def fetch_data(self) -> str:
+        await asyncio.sleep(0.1)
+        return "Data fetched!"
+
+
+class AsyncHandler(PluginHandler):
+    @classmethod
+    def create_injections(cls, instance: Any) -> Dict[Type, Any]:
+        return {AsyncService: AsyncService()}
+    
+    @classmethod
+    def initialize_plugin(cls, instance: Any, plugin: Any) -> None:
+        pass
+    
+    @classmethod
+    async def ainitialize_plugin(cls, instance: Any, plugin: Any) -> None:
+        print(f"Async initializing: {plugin.name}")
+
+
+@Plugin.for_handler(AsyncHandler)
+class AsyncPlugin(Plugin):
+    name = "async_plugin"
+    description = "A plugin with async support"
+    version = "1.0.0"
+    
+    async_service: AsyncService
+
+
+async def main():
+    manager = PluginManager(handlers=[AsyncHandler()])
+    await manager.aregister_plugin(AsyncPlugin)
+    
+    plugin = manager.get_plugin("async_plugin")
+    result = await plugin.async_service.fetch_data()
+    print(result)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+---
+
+## License
+
+Copyright © 2025 GDP Labs
+
