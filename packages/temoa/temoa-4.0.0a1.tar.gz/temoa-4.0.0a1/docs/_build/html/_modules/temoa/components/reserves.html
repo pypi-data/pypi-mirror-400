@@ -1,0 +1,447 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.reserves &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.reserves</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.reserves</h1><div class="highlight"><pre>
+<span></span><span class="c1"># temoa/components/reserves.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the reserve margin components of the Temoa model.</span>
+
+<span class="sd">This module is responsible for ensuring the energy system maintains a sufficient</span>
+<span class="sd">planning reserve margin to ensure reliability. It supports both a &#39;static&#39;</span>
+<span class="sd">(based on installed capacity) and a &#39;dynamic&#39; (based on available generation</span>
+<span class="sd">in a time slice) formulation for calculating available reserves.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">Constraint</span><span class="p">,</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types.core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_variable_efficiency</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExprLike</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SET FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reserve_margin_indices</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">]]:</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">planning_reserve_margin</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># HELPER FUNCTIONS FOR CONSTRAINT LOGIC</span>
+<span class="c1"># ============================================================================</span>
+
+
+<div class="viewcode-block" id="reserve_margin_dynamic">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.reserves.reserve_margin_dynamic">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">reserve_margin_dynamic</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A dynamic alternative to the traditional, static reserve margin constraint. Capacity values</span>
+<span class="sd">    are calculated from availability of generation in each hour—like an operating reserve margin—\</span>
+<span class="sd">    accounting for a capacity derate factor subtracting, for example, forced outage due to icing.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: reserve_margin_dynamic</span>
+
+<span class="sd">            &amp;\sum_{t \in T^{res} \setminus T^{x} \setminus T^s,\ V} CFP_{r,p,s^*,d^*,t,v}\</span>
+<span class="sd">                \cdot RCD_{r,p,s^*,t,v}\</span>
+<span class="sd">                \cdot \mathbf{CAPAVL}_{p,t} \cdot SEG_{s^*,d^*}\</span>
+<span class="sd">                \cdot C2A_{r,t} \\</span>
+<span class="sd">            &amp;+ \sum_{t \in T^{res} \cap T^{x} \setminus T^s,\ V} CFP_{r_i - r, p, s^*, d^*, t, v}\</span>
+<span class="sd">                \cdot RCD_{r_i - r, p, s^*, t, v}\</span>
+<span class="sd">                \cdot \mathbf{CAPAVL}_{p,t} \cdot SEG_{s^*,d^*}\</span>
+<span class="sd">                \cdot C2A_{r_i - r, t} \\</span>
+<span class="sd">            &amp;- \sum_{t \in T^{res} \cap T^{x} \setminus T^s,\ V} CFP_{r - r_i, p, s^*, d^*, t, v}\</span>
+<span class="sd">                \cdot RCD_{r - r_i, p, s^*, t, v}\</span>
+<span class="sd">                \cdot \mathbf{CAPAVL}_{p,t}\</span>
+<span class="sd">                \cdot SEG_{s^*,d^*} \cdot C2A_{r - r_i, t} \\</span>
+<span class="sd">            &amp;+ \sum_{t \in (T^s \cap T^{res}), V, I, O} \</span>
+<span class="sd">                \left(\</span>
+<span class="sd">                \mathbf{FO}_{r,p,s,d,i,t,v,o} - \mathbf{FI}_{r,p,s,d,i,t,v,o}\</span>
+<span class="sd">                \right)\</span>
+<span class="sd">                \cdot RCD_{r,p,s,t,v} \\</span>
+<span class="sd">            &amp;\geq\</span>
+<span class="sd">                \left[\</span>
+<span class="sd">                \sum_{t \in T^{res} \setminus T^{x}, V, I, O}\</span>
+<span class="sd">                \mathbf{FO}_{r, p, s, d, i, t, v, o}\</span>
+<span class="sd">                \right. \\</span>
+<span class="sd">            &amp;+ \sum_{t \in T^{res} \cap T^{x}, V, I, O} \</span>
+<span class="sd">                \mathbf{FO}_{r_i - r, p, s, d, i, t, v, o} \\</span>
+<span class="sd">            &amp;- \sum_{t \in T^{res} \cap T^{x}, V, I, O} \</span>
+<span class="sd">                \mathbf{FI}_{r - r_i, p, s, d, i, t, v, o} \\</span>
+<span class="sd">            &amp;- \left. \sum_{t \in T^{res} \cap T^{s}, V, I, O} \</span>
+<span class="sd">                \mathbf{FI}_{r, p, s, d, i, t, v, o} \right] \cdot (1 + PRM_r) \\</span>
+<span class="sd">            \\</span>
+<span class="sd">            &amp;\qquad \qquad \forall \{r, p, s, d\} \in \</span>
+<span class="sd">            \Theta_{\text{ReserveMargin}} \text{ and } \forall r_i \in R</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_reserve</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span>
+    <span class="p">):</span>  <span class="c1"># If reserve set empty or if r,p not in M.processReservePeriod, skip the constraint</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="c1"># Everything but storage and exchange techs</span>
+    <span class="c1"># Derated available generation</span>
+    <span class="n">available</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">reserve_capacity_derate</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Storage</span>
+    <span class="c1"># Derated net output flow</span>
+    <span class="n">available</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">reserve_capacity_derate</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">available</span> <span class="o">-=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">o</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">reserve_capacity_derate</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># The above code does not consider exchange techs, e.g. electricity</span>
+    <span class="c1"># transmission between two distinct regions.</span>
+    <span class="c1"># We take exchange takes into account below.</span>
+    <span class="c1"># Note that a single exchange tech linking regions Ri and Rj is twice</span>
+    <span class="c1"># defined: once for region &quot;Ri-Rj&quot; and once for region &quot;Rj-Ri&quot;.</span>
+
+    <span class="c1"># First, determine the amount of firm capacity each exchange tech</span>
+    <span class="c1"># contributes.</span>
+    <span class="k">for</span> <span class="n">r1r2</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">regional_indices</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;-&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">r1r2</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">r1r2</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">:</span>  <span class="c1"># ensure r1r2 is a valid reserve provider in p</span>
+            <span class="k">continue</span>
+        <span class="n">r1</span><span class="p">,</span> <span class="n">r2</span> <span class="o">=</span> <span class="n">r1r2</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Only consider the capacity of technologies that import to</span>
+        <span class="c1"># the region in question -- i.e. for cases where r2 == r.</span>
+        <span class="k">if</span> <span class="n">r2</span> <span class="o">!=</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># add the available output of the exchange tech.</span>
+        <span class="n">available</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">reserve_capacity_derate</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_factor_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">available</span></div>
+
+
+
+<div class="viewcode-block" id="reserve_margin_static">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.reserves.reserve_margin_static">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">reserve_margin_static</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    During each period :math:`p`, the sum of capacity values of all reserve</span>
+<span class="sd">    technologies :math:`\sum_{t \in T^{res}} \textbf{CAPAVL}_{r,p,t}`, which are</span>
+<span class="sd">    defined in the set :math:`\textbf{T}^{res}`, should exceed the peak load by</span>
+<span class="sd">    :math:`PRM`, the regional reserve margin. Note that the reserve</span>
+<span class="sd">    margin is expressed in percentage of the peak load. Generally speaking, in</span>
+<span class="sd">    a database we may not know the peak demand before running the model, therefore,</span>
+<span class="sd">    we write this equation for all the time-slices defined in the database in each region.</span>
+<span class="sd">    Each generator is allowed to contribute its available capacity times a pre-defined</span>
+<span class="sd">    capacity credit, :math:`CC_{t,r}`</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        :label: reserve_margin_static</span>
+
+<span class="sd">            &amp;\sum_{t \in T^{res} \setminus T^{x}} {CC_{t,r} \cdot \textbf{CAPAVL}_{p,t} \cdot SEG_{s^*,d^*} \cdot C2A_{r,t} }\\</span>
+<span class="sd">            &amp;+ \sum_{t \in T^{res} \cap T^{x}} {CC_{t,r_i-r} \cdot \textbf{CAPAVL}_{p,t} \cdot SEG_{s^*,d^*} \cdot C2A_{r_i-r,t} }\\</span>
+<span class="sd">            &amp;- \sum_{t \in T^{res} \cap T^{x}} {CC_{t,r-r_i} \cdot \textbf{CAPAVL}_{p,t} \cdot SEG_{s^*,d^*} \cdot C2A_{r-r_i,t} }\\</span>
+<span class="sd">            &amp;\geq \left [ \sum_{ t \in T^{res} \setminus T^{x},V,I,O } \textbf{FO}_{r, p, s, d, i, t, v, o}\right.\\</span>
+<span class="sd">            &amp;+ \sum_{ t \in T^{res} \cap T^{x},V,I,O } \textbf{FO}_{r_i-r, p, s, d, i, t, v, o}\\</span>
+<span class="sd">            &amp;- \sum_{ t \in T^{res} \cap T^{x},V,I,O } \textbf{FI}_{r-r_i, p, s, d, i, t, v, o}\\</span>
+<span class="sd">            &amp;- \left.\sum_{ t \in T^{res} \cap T^{s},V,I,O } \textbf{FI}_{r, p, s, d, i, t, v, o}  \right]  \cdot (1 + PRM_r)\\</span>
+
+<span class="sd">            \\</span>
+<span class="sd">            &amp;\qquad\qquad\forall \{r, p, s, d\} \in \Theta_{\text{ReserveMargin}} \text{and} \forall r_i \in R</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_reserve</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span>
+    <span class="p">):</span>  <span class="c1"># If reserve set empty or if r,p not in M.processReservePeriod, skip the constraint</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="n">available</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_credit</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+        <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_uncap</span>
+    <span class="p">)</span>
+
+    <span class="c1"># The above code does not consider exchange techs, e.g. electricity</span>
+    <span class="c1"># transmission between two distinct regions.</span>
+    <span class="c1"># We take exchange takes into account below.</span>
+    <span class="c1"># Note that a single exchange tech linking regions Ri and Rj is twice</span>
+    <span class="c1"># defined: once for region &quot;Ri-Rj&quot; and once for region &quot;Rj-Ri&quot;.</span>
+
+    <span class="c1"># First, determine the amount of firm capacity each exchange tech</span>
+    <span class="c1"># contributes.</span>
+    <span class="k">for</span> <span class="n">r1r2</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">regional_indices</span><span class="p">:</span>
+        <span class="k">if</span> <span class="s1">&#39;-&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">r1r2</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">r1r2</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">:</span>  <span class="c1"># ensure r1r2 is a valid reserve provider in p</span>
+            <span class="k">continue</span>
+        <span class="n">r1</span><span class="p">,</span> <span class="n">r2</span> <span class="o">=</span> <span class="n">r1r2</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Only consider the capacity of technologies that import to</span>
+        <span class="c1"># the region in question -- i.e. for cases where r2 == r.</span>
+        <span class="k">if</span> <span class="n">r2</span> <span class="o">!=</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># add the available capacity of the exchange tech.</span>
+        <span class="n">available</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_credit</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">available</span></div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO CONSTRAINT RULE</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">reserve_margin_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+    <span class="c1"># Get available generation in this time slice depending on method specified in config file</span>
+    <span class="k">match</span> <span class="n">model</span><span class="o">.</span><span class="n">reserve_margin_method</span><span class="o">.</span><span class="n">first</span><span class="p">():</span>
+        <span class="k">case</span> <span class="s1">&#39;static&#39;</span><span class="p">:</span>
+            <span class="n">available</span> <span class="o">=</span> <span class="n">reserve_margin_static</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="k">case</span> <span class="s1">&#39;dynamic&#39;</span><span class="p">:</span>
+            <span class="n">available</span> <span class="o">=</span> <span class="n">reserve_margin_dynamic</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;Invalid reserve margin parameter &#39;</span><span class="si">{</span><span class="n">model</span><span class="o">.</span><span class="n">reserve_margin_method</span><span class="o">.</span><span class="n">first</span><span class="p">()</span><span class="si">}</span><span class="s2">&#39;. Check the config file.&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="c1"># In most Temoa input databases, demand is endogenous, so we use electricity</span>
+    <span class="c1"># generation instead as a proxy for electricity demand.</span>
+    <span class="c1"># Non-annual generation</span>
+    <span class="n">total_generation</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Generators might serve demands directly</span>
+    <span class="c1"># Annual generation</span>
+    <span class="n">total_generation</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_o</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_demand</span>
+            <span class="k">else</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+        <span class="p">)</span>
+        <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># We must take into account flows into storage technologies.</span>
+    <span class="c1"># Flows into storage technologies need to be subtracted from the</span>
+    <span class="c1"># load calculation.</span>
+    <span class="n">total_generation</span> <span class="o">-=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Electricity imports and exports via exchange techs are accounted</span>
+    <span class="c1"># for below:</span>
+    <span class="k">for</span> <span class="n">r1r2</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">regional_indices</span><span class="p">:</span>  <span class="c1"># ensure the region is of the form r1-r2</span>
+        <span class="k">if</span> <span class="s1">&#39;-&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">r1r2</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">r1r2</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">,</span>
+        <span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">:</span>  <span class="c1"># ensure r1r2 is a valid reserve provider in p</span>
+            <span class="k">continue</span>
+        <span class="n">r1</span><span class="p">,</span> <span class="n">r2</span> <span class="o">=</span> <span class="n">r1r2</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+        <span class="c1"># First, determine the exports, and subtract this value from the</span>
+        <span class="c1"># total generation.</span>
+        <span class="k">if</span> <span class="n">r1</span> <span class="o">==</span> <span class="n">r</span><span class="p">:</span>
+            <span class="n">total_generation</span> <span class="o">-=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+                <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+                <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+            <span class="p">)</span>
+        <span class="c1"># Second, determine the imports, and add this value from the</span>
+        <span class="c1"># total generation.</span>
+        <span class="k">elif</span> <span class="n">r2</span> <span class="o">==</span> <span class="n">r</span><span class="p">:</span>
+            <span class="n">total_generation</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+                <span class="k">for</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r1r2</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">S_v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+            <span class="p">)</span>
+
+    <span class="n">requirement</span> <span class="o">=</span> <span class="n">total_generation</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">planning_reserve_margin</span><span class="p">[</span><span class="n">r</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="n">available</span> <span class="o">&gt;=</span> <span class="n">requirement</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

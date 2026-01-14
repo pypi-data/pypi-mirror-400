@@ -1,0 +1,711 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.operations &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.operations</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.operations</h1><div class="highlight"><pre>
+<span></span><span class="c1"># temoa/components/operations.py</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines operational constraints for technologies in the Temoa model.</span>
+
+<span class="sd">This module is responsible for constraints that govern the dispatch behavior</span>
+<span class="sd">of technologies across time slices, including:</span>
+<span class="sd">-  Pre-computing sets for technologies with special operational characteristics.</span>
+<span class="sd">-  Baseload constraints, which force constant output within a season.</span>
+<span class="sd">-  Ramping constraints, which limit the rate of change in output between</span>
+<span class="sd">    adjacent time slices.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">Constraint</span><span class="p">,</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExprLike</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types.core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Region</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Vintage</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SET FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">baseload_diurnal_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">baseload_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">baseload_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_up_day_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_up_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_up_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_down_day_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_down_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_down_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_up_season_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">time_sequencing</span><span class="o">.</span><span class="n">first</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;consecutive_days&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="c1"># s, s_next indexing ensures we dont build redundant constraints</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_up_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_up_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">_p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ordered_season_sequential</span>
+        <span class="k">if</span> <span class="n">_p</span> <span class="o">==</span> <span class="n">p</span>
+        <span class="k">for</span> <span class="n">s_next</span> <span class="ow">in</span> <span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]],)</span>
+        <span class="k">if</span> <span class="n">s_next</span> <span class="o">!=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">()][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_down_season_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">]]:</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">time_sequencing</span><span class="o">.</span><span class="n">first</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;consecutive_days&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="c1"># s, s_next indexing ensures we dont build redundant constraints</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_down_vintages</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ramp_down_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">_p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">ordered_season_sequential</span>
+        <span class="k">if</span> <span class="n">_p</span> <span class="o">==</span> <span class="n">p</span>
+        <span class="k">for</span> <span class="n">s_next</span> <span class="ow">in</span> <span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">sequential_to_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next_sequential</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_seq</span><span class="p">]],)</span>
+        <span class="k">if</span> <span class="n">s_next</span> <span class="o">!=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">()][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO CONSTRAINT RULES</span>
+<span class="c1"># ============================================================================</span>
+
+
+<div class="viewcode-block" id="baseload_diurnal_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.operations.baseload_diurnal_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">baseload_diurnal_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    Some electric generators cannot ramp output over a short period of time (e.g.,</span>
+<span class="sd">    hourly or daily). Temoa models this behavior by forcing technologies in the</span>
+<span class="sd">    :code:`tech_baseload` set to maintain a constant output across all times-of-day</span>
+<span class="sd">    within the same season. Note that the output of a baseload process can vary</span>
+<span class="sd">    between seasons.</span>
+
+<span class="sd">    Ideally, this constraint would not be necessary, and baseload processes would</span>
+<span class="sd">    simply not have a :math:`d` index.  However, implementing the more efficient</span>
+<span class="sd">    functionality is currently on the Temoa TODO list.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: BaseloadDaily</span>
+
+<span class="sd">             SEG_{s, D_0}</span>
+<span class="sd">       \cdot \sum_{I, O} \textbf{FO}_{r, p, s, d,i, t, v, o}</span>
+<span class="sd">       =</span>
+<span class="sd">             SEG_{s, d}</span>
+<span class="sd">       \cdot \sum_{I, O} \textbf{FO}_{r, p, s, D_0,i, t, v, o}</span>
+
+<span class="sd">       \\</span>
+<span class="sd">       \forall \{r, p, s, d, t, v\} \in \Theta_{\text{BaseloadDiurnal}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Question: How to set the different times of day equal to each other?</span>
+
+    <span class="c1"># Step 1: Acquire a &quot;canonical&quot; representation of the times of day</span>
+    <span class="n">l_times</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">)</span>  <span class="c1"># i.e. a sorted Python list.</span>
+    <span class="c1"># This is the commonality between invocations of this method.</span>
+
+    <span class="n">index</span> <span class="o">=</span> <span class="n">l_times</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="k">if</span> <span class="mi">0</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+        <span class="c1"># When index is 0, it means that we&#39;ve reached the beginning of the array</span>
+        <span class="c1"># For the algorithm, this is a terminating condition: do not create</span>
+        <span class="c1"># an effectively useless constraint</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="c1"># Step 2: Set the rest of the times of day equal in output to the first.</span>
+    <span class="c1"># i.e. create a set of constraints that look something like:</span>
+    <span class="c1"># tod[ 2 ] == tod[ 1 ]</span>
+    <span class="c1"># tod[ 3 ] == tod[ 1 ]</span>
+    <span class="c1"># tod[ 4 ] == tod[ 1 ]</span>
+    <span class="c1"># and so on ...</span>
+    <span class="n">d_0</span> <span class="o">=</span> <span class="n">l_times</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Step 3: the actual expression.  For baseload, must compute the /average/</span>
+    <span class="c1"># activity over the segment.  By definition, average is</span>
+    <span class="c1">#     (segment activity) / (segment length)</span>
+    <span class="c1"># So:   (ActA / SegA) == (ActB / SegB)</span>
+    <span class="c1">#   computationally, however, multiplication is cheaper than division, so:</span>
+    <span class="c1">#       (ActA * SegB) == (ActB * SegA)</span>
+    <span class="n">activity_sd</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">activity_sd_0</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d_0</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">activity_sd</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d_0</span><span class="p">])</span> <span class="o">==</span> <span class="n">activity_sd_0</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PRE-COMPUTATION FUNCTION</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_operational_vintage_sets</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Populates vintage-based dictionaries for technologies with special</span>
+<span class="sd">    operational characteristics like curtailment, baseload, storage, ramping, and reserves.</span>
+
+<span class="sd">    Populates:</span>
+<span class="sd">        - M.curtailment_vintages, M.baseload_vintages, M.storage_vintages,</span>
+<span class="sd">          M.ramp_up_vintages, M.ramp_down_vintages: Dictionaries mapping (r, p, t)</span>
+<span class="sd">          to a set of vintages `v`.</span>
+<span class="sd">        - M.process_reserve_periods: Dictionary mapping (r, p) to a set of (t, v) tuples.</span>
+<span class="sd">        - M.is_seasonal_storage: A boolean lookup for seasonal storage technologies.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Creating vintage sets for operational constraints.&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_vintages</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">]:</span>
+            <span class="n">key_rpt</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+            <span class="n">key_rp</span> <span class="o">=</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_curtailment</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">curtailment_vintages</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rpt</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_baseload</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">baseload_vintages</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rpt</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">storage_vintages</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rpt</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_upramping</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">ramp_up_vintages</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rpt</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_downramping</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">ramp_down_vintages</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rpt</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_reserve</span><span class="p">:</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">process_reserve_periods</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key_rp</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span><span class="o">.</span><span class="n">add</span><span class="p">((</span><span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">))</span>
+
+    <span class="c1"># A dictionary of whether a storage tech is seasonal, just to speed things up</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span><span class="p">:</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">is_seasonal_storage</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">=</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_seasonal_storage</span>
+
+
+<div class="viewcode-block" id="ramp_up_day_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.operations.ramp_up_day_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_up_day_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One of two constraints built from the ramp_up_hourly table, along with the</span>
+<span class="sd">    ramp_up_season_constraint. ramp_up_day constrains ramp rates between time slices</span>
+<span class="sd">    within each season and ramp_up_season constrains ramp rates between sequential</span>
+<span class="sd">    seasons. If the :code:`time_sequencing` parameter is set to :code:`consecutive_days`</span>
+<span class="sd">    then the ramp_up_season constraint is skipped as seasons already connect together.</span>
+
+<span class="sd">    The ramp rate constraint is utilized to limit the rate of electricity generation</span>
+<span class="sd">    increase and decrease between two adjacent time slices in order to account for</span>
+<span class="sd">    physical limits associated with thermal power plants. This constraint is only</span>
+<span class="sd">    applied to technologies in the set :code:`tech_upramping`. We assume for</span>
+<span class="sd">    simplicity the rate limits do not vary with technology vintage. The ramp rate</span>
+<span class="sd">    limits for a technology should be expressed in percentage of its rated capacity</span>
+<span class="sd">    per hour.</span>
+
+<span class="sd">    In a representative periods or seasonal time slices model, the next time slice,</span>
+<span class="sd">    :math:`(s_{next},d_{next})`, from the end of each season, :math:`(s,d_{last})`</span>
+<span class="sd">    is the beginning of the same season, :math:`(s,d_{first})`</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: ramp_up_day</span>
+
+<span class="sd">            \frac{</span>
+<span class="sd">                \sum_{I,O} \mathbf{FO}_{r,p,s_{next},d_{next},i,t,v,o}</span>
+<span class="sd">            }{</span>
+<span class="sd">                SEG_{r,p,s_{next},d_{next}} \cdot 24 \cdot DPP</span>
+<span class="sd">            }</span>
+<span class="sd">            -</span>
+<span class="sd">            \frac{</span>
+<span class="sd">                \sum_{I,O} \mathbf{FO}_{r,p,s,d,i,t,v,o}</span>
+<span class="sd">            }{</span>
+<span class="sd">                SEG_{r,p,s,d} \cdot 24 \cdot DPP</span>
+<span class="sd">            }</span>
+<span class="sd">            \leq</span>
+<span class="sd">            R_{r,t} \cdot \Delta H_{r,p,s,d,s_{next},d_{next}} \cdot CAP_{r,p,t,v} \cdot C2A_{r,t}</span>
+<span class="sd">            \\</span>
+<span class="sd">            \forall \{r, p, s, d, t, v\} \in \Theta_{\text{ramp_up_day}}</span>
+<span class="sd">            \\</span>
+<span class="sd">            \text{where: } \Delta H_{r,p,s,d,s_{next},d_{next}} = \frac{24}{2}</span>
+<span class="sd">            \left ( \frac{SEG_{r,p,s,d}}{\sum_{D} SEG_{r,p,s,d&#39;}} +</span>
+<span class="sd">            \frac{SEG_{r,p,s_{next},d_{next}}}{\sum_{D} SEG_{r,p,s_{next},d&#39;}} \right )</span>
+
+<span class="sd">    where:</span>
+
+<span class="sd">    - :math:`SEG_{r,p,s,d}` is the fraction of the period in time slice :math:`(s,d)`</span>
+<span class="sd">    - :math:`DPP` is the number of days in each period</span>
+<span class="sd">    - :math:`R_{r,t}` is the ramp rate per hour</span>
+<span class="sd">    - :math:`\Delta H_{r,p,s,d,s_{next},d_{next}}` is the number of elapsed hours between midpoints of time slices</span>
+<span class="sd">    - :math:`CAP \cdot C2A` gives the maximum hourly change in activity</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span>
+
+    <span class="c1"># How many hours does this time slice represent</span>
+    <span class="n">hours_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="n">hours_adjust_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust_next</span>
+    <span class="p">)</span>
+
+    <span class="c1"># elapsed hours from middle of this time slice to middle of next time slice</span>
+    <span class="n">hours_elapsed</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">24</span>
+        <span class="o">/</span> <span class="mi">2</span>
+        <span class="o">*</span> <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span>
+            <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ramp_fraction</span> <span class="o">=</span> <span class="n">hours_elapsed</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ramp_up_hourly</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">ramp_fraction</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Warning: Hourly ramp up rate (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) is too large to be constraining from (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) to (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">). &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;Should be less than </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">hours_elapsed</span><span class="si">:</span><span class="s1">.4f</span><span class="si">}</span><span class="s1">. Constraint skipped.&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="n">activity_increase</span> <span class="o">=</span> <span class="n">hourly_activity_sd_next</span> <span class="o">-</span> <span class="n">hourly_activity_sd</span>  <span class="c1"># opposite sign from rampdown</span>
+    <span class="n">rampable_activity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">ramp_fraction</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">activity_increase</span> <span class="o">&lt;=</span> <span class="n">rampable_activity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="ramp_down_day_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.operations.ramp_down_day_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_down_day_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    Similar to the :code`ramp_up_day` constraint, we use the :code:`ramp_down_day`</span>
+<span class="sd">    constraint to limit ramp down rates between any two adjacent time slices.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: ramp_down_day</span>
+
+<span class="sd">            \frac{</span>
+<span class="sd">                \sum_{I,O} \mathbf{FO}_{r,p,s,d,i,t,v,o}</span>
+<span class="sd">            }{</span>
+<span class="sd">                SEG_{r,p,s,d} \cdot 24 \cdot DPP</span>
+<span class="sd">            }</span>
+<span class="sd">            -</span>
+<span class="sd">            \frac{</span>
+<span class="sd">                \sum_{I,O} \mathbf{FO}_{r,p,s_{next},d_{next},i,t,v,o}</span>
+<span class="sd">            }{</span>
+<span class="sd">                SEG_{r,p,s_{next},d_{next}} \cdot 24 \cdot DPP</span>
+<span class="sd">            }</span>
+<span class="sd">            \leq</span>
+<span class="sd">            R_{r,t} \cdot \Delta H_{r,p,s,d,s_{next},d_{next}} \cdot CAP_{r,p,t,v} \cdot C2A_{r,t}</span>
+<span class="sd">            \\</span>
+<span class="sd">            \forall \{r, p, s, d, t, v\} \in \Theta_{\text{ramp_down_day}}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_next</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span>
+
+    <span class="c1"># How many hours does this time slice represent</span>
+    <span class="n">hours_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="n">hours_adjust_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust_next</span>
+    <span class="p">)</span>
+
+    <span class="c1"># elapsed hours from middle of this time slice to middle of next time slice</span>
+    <span class="n">hours_elapsed</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">24</span>
+        <span class="o">/</span> <span class="mi">2</span>
+        <span class="o">*</span> <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span>
+            <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ramp_fraction</span> <span class="o">=</span> <span class="n">hours_elapsed</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ramp_down_hourly</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">ramp_fraction</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Warning: Hourly ramp down rate  (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) is too large to be constraining from (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) to (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">). &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;Should be less than </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">hours_elapsed</span><span class="si">:</span><span class="s1">.4f</span><span class="si">}</span><span class="s1">. Constraint skipped.&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="n">activity_decrease</span> <span class="o">=</span> <span class="n">hourly_activity_sd</span> <span class="o">-</span> <span class="n">hourly_activity_sd_next</span>  <span class="c1"># opposite sign from rampup</span>
+    <span class="n">rampable_activity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">ramp_fraction</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">activity_decrease</span> <span class="o">&lt;=</span> <span class="n">rampable_activity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="ramp_up_season_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.operations.ramp_up_season_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_up_season_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">s_next</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constrains the ramp up rate of activity between time slices at the boundary</span>
+<span class="sd">    of sequential seasons. Same as ramp_up_day but only applies to the boundary</span>
+<span class="sd">    between sequential seasons, i.e., :math:`(s^{seq},d_{last})` to :math:`(s^{seq}_{next},d_{first})`</span>
+<span class="sd">    and :math:`s^{seq}_{next}` is based on the TimeSequential table rather than the</span>
+<span class="sd">    time_season table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">()</span>
+    <span class="n">d_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+
+    <span class="c1"># How many hours does this time slice represent</span>
+    <span class="n">hours_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="n">hours_adjust_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust_next</span>
+    <span class="p">)</span>
+
+    <span class="c1"># elapsed hours from middle of this time slice to middle of next time slice</span>
+    <span class="n">hours_elapsed</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">24</span>
+        <span class="o">/</span> <span class="mi">2</span>
+        <span class="o">*</span> <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span>
+            <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ramp_fraction</span> <span class="o">=</span> <span class="n">hours_elapsed</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ramp_up_hourly</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">ramp_fraction</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Warning: Hourly ramp up rate (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) is too large to be constraining from (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) to (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">). &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;Should be less than </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">hours_elapsed</span><span class="si">:</span><span class="s1">.4f</span><span class="si">}</span><span class="s1">. Constraint skipped.&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="n">activity_increase</span> <span class="o">=</span> <span class="n">hourly_activity_sd_next</span> <span class="o">-</span> <span class="n">hourly_activity_sd</span>  <span class="c1"># opposite sign from rampdown</span>
+    <span class="n">rampable_activity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">ramp_fraction</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">activity_increase</span> <span class="o">&lt;=</span> <span class="n">rampable_activity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="ramp_down_season_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.operations.ramp_down_season_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">ramp_down_season_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">s_next</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Constrains the ramp down rate of activity between time slices at the boundary</span>
+<span class="sd">    of sequential seasons. Same as ramp_down_day but only applies to the boundary</span>
+<span class="sd">    between sequential seasons, i.e., :math:`(s^{seq},d_{last})` to :math:`(s^{seq}_{next},d_{first})`</span>
+<span class="sd">    and :math:`s^{seq}_{next}` is based on the TimeSequential table rather than the</span>
+<span class="sd">    time_season table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">d</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">last</span><span class="p">()</span>
+    <span class="n">d_next</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="o">.</span><span class="n">first</span><span class="p">()</span>
+
+    <span class="c1"># How many hours does this time slice represent</span>
+    <span class="n">hours_adjust</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="n">hours_adjust_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">days_per_period</span><span class="p">)</span> <span class="o">*</span> <span class="mi">24</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust</span>
+    <span class="p">)</span>
+
+    <span class="n">hourly_activity_sd_next</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">,</span> <span class="n">S_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">S_i</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">hours_adjust_next</span>
+    <span class="p">)</span>
+
+    <span class="c1"># elapsed hours from middle of this time slice to middle of next time slice</span>
+    <span class="n">hours_elapsed</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="mi">24</span>
+        <span class="o">/</span> <span class="mi">2</span>
+        <span class="o">*</span> <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">])</span>
+            <span class="o">+</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">])</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction_per_season</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">])</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ramp_fraction</span> <span class="o">=</span> <span class="n">hours_elapsed</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ramp_down_hourly</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">ramp_fraction</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Warning: Hourly ramp down rate (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) is too large to be constraining from (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">) to (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">). &#39;</span>
+            <span class="sa">f</span><span class="s1">&#39;Should be less than </span><span class="si">{</span><span class="mi">1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">hours_elapsed</span><span class="si">:</span><span class="s1">.4f</span><span class="si">}</span><span class="s1">. Constraint skipped.&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_next</span><span class="p">,</span> <span class="n">d_next</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">Constraint</span><span class="o">.</span><span class="n">Skip</span>
+
+    <span class="n">activity_decrease</span> <span class="o">=</span> <span class="n">hourly_activity_sd</span> <span class="o">-</span> <span class="n">hourly_activity_sd_next</span>  <span class="c1"># opposite sign from rampup</span>
+    <span class="n">rampable_activity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">ramp_fraction</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">]</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">capacity_to_activity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">t</span><span class="p">])</span>
+    <span class="p">)</span>
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">activity_decrease</span> <span class="o">&lt;=</span> <span class="n">rampable_activity</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

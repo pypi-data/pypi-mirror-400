@@ -1,0 +1,942 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>temoa.components.commodities &mdash; Tools for Energy Model Optimization and Analysis (Temoa) 4.0.0a1.dev20251113 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/my_theme.css?v=a08f7516" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=09296c51"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Tools for Energy Model Optimization and Analysis (Temoa)
+              <img src="../../../_static/Temoa_logo_color_small.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html">Preface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#quick-start">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#database-construction">Database Construction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#data-quality">Data Quality</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#visualization">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-math-behind-temoa">The Math Behind Temoa</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#the-temoa-computational-implementation">The Temoa Computational Implementation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../Documentation.html#temoa-code-style-guide">Temoa Code Style Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Tools for Energy Model Optimization and Analysis (Temoa)</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">temoa.components.commodities</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for temoa.components.commodities</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Defines the commodity and demand-related components of the Temoa model.</span>
+
+<span class="sd">This module is responsible for:</span>
+<span class="sd">-  Pre-computing technology and commodity subsets (e.g., demand techs, flex techs).</span>
+<span class="sd">-  Calculating and validating demand distributions across time slices.</span>
+<span class="sd">-  Defining the core commodity balance and demand satisfaction constraints that</span>
+<span class="sd">    drive the model&#39;s energy system solution.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">product</span> <span class="k">as</span> <span class="n">cross_product</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">logging</span><span class="w"> </span><span class="kn">import</span> <span class="n">getLogger</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">operator</span><span class="w"> </span><span class="kn">import</span> <span class="n">itemgetter</span> <span class="k">as</span> <span class="n">iget</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pyomo.environ</span><span class="w"> </span><span class="kn">import</span> <span class="n">value</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">temoa.types.core_types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Season</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Vintage</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">temoa.core.model</span><span class="w"> </span><span class="kn">import</span> <span class="n">TemoaModel</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Commodity</span><span class="p">,</span> <span class="n">ExprLike</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Region</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_variable_efficiency</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># HELPER FUNCTIONS AND VALIDATORS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">commodity_balance_constraint_error_check</span><span class="p">(</span>
+    <span class="n">supplied</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">demanded</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">Commodity</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># note:  if a pyomo equation simplifies to an int, there are no variables in it, which</span>
+    <span class="c1">#        is an indicator of a problem. How this might come up I do not know</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">supplied</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">demanded</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">supplied</span> <span class="o">==</span> <span class="n">demanded</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Unable to balance commodity </span><span class="si">{}</span><span class="s1"> in (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">).</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;No flows on one side of constraint expression:</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;   </span><span class="si">{}</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;Possible reasons:</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s2">&quot; - Is there a missing period in set &#39;time_future&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing tech in set &#39;tech_resource&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing tech in set &#39;tech_production&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing commodity in set &#39;commodity_physical&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s1">&#39; - Are there missing entries in the efficiency table?</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39; - Does a process need a longer Lifetime?&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_commodity_balance_constraint_error_check</span><span class="p">(</span>
+    <span class="n">supplied</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">demanded</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">Commodity</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># note:  if a pyomo equation simplifies to an int, there are no variables in it, which</span>
+    <span class="c1">#        is an indicator of a problem. How this might come up I do not know</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">supplied</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">demanded</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">supplied</span> <span class="o">==</span> <span class="n">demanded</span><span class="p">)</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s1">&#39;Unable to balance annual commodity </span><span class="si">{}</span><span class="s1"> in (</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">).</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;No flows on one side of constraint expression:</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;   </span><span class="si">{}</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39;Possible reasons:</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s2">&quot; - Is there a missing period in set &#39;time_future&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing tech in set &#39;tech_resource&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing tech in set &#39;tech_production&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot; - Is there a missing commodity in set &#39;commodity_physical&#39;?</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s1">&#39; - Are there missing entries in the efficiency table?</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39; - Does a process need a longer Lifetime?&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">expr</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">demand_constraint_error_check</span><span class="p">(</span><span class="n">supply</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">dem</span><span class="p">:</span> <span class="n">Commodity</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="c1"># note:  if a pyomo equation simplifies to an int, there are no variables in it, which</span>
+    <span class="c1">#        is an indicator of a problem</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">supply</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s2">&quot;Error: Demand &#39;</span><span class="si">{}</span><span class="s2">&#39; for (</span><span class="si">{}</span><span class="s2">, </span><span class="si">{}</span><span class="s2">) unable to be met by any &quot;</span>
+            <span class="s1">&#39;technology.</span><span class="se">\n\t</span><span class="s1">Possible reasons:</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39; - Is the efficiency parameter missing an entry for this demand?</span><span class="se">\n</span><span class="s1">&#39;</span>
+            <span class="s1">&#39; - Does a tech that satisfies this demand need a longer &#39;</span>
+            <span class="s1">&#39;Lifetime?</span><span class="se">\n</span><span class="s1">&#39;</span>
+        <span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dem</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dem</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO INDEX SET FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">demand_activity_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Technology</span><span class="p">,</span> <span class="n">Vintage</span><span class="p">,</span> <span class="n">Commodity</span><span class="p">]]:</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dem</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">demand_constraint_rpc</span>
+        <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">commodity_balance_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Season</span><span class="p">,</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">Commodity</span><span class="p">]]:</span>
+    <span class="c1"># Generate indices only for those commodities that are produced by</span>
+    <span class="c1"># technologies with varying output at the time slice level.</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_balance_rpc</span>
+        <span class="c1"># r in this line includes interregional transfer combinations (not needed).</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">regions</span>  <span class="c1"># this line ensures only the regions are included.</span>
+        <span class="ow">and</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_annual</span>
+        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_commodity_balance_constraint_indices</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Region</span><span class="p">,</span> <span class="n">Period</span><span class="p">,</span> <span class="n">Commodity</span><span class="p">]]:</span>
+    <span class="c1"># Generate indices only for those commodities that are produced by</span>
+    <span class="c1"># technologies with constant annual output.</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_balance_rpc</span>
+        <span class="c1"># r in this line includes interregional transfer combinations (not needed).</span>
+        <span class="k">if</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">regions</span>  <span class="c1"># this line ensures only the regions are included.</span>
+        <span class="ow">and</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_annual</span>
+    <span class="p">}</span>
+
+    <span class="k">return</span> <span class="n">indices</span>
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PYOMO CONSTRAINT RULES</span>
+<span class="c1"># ============================================================================</span>
+
+
+<div class="viewcode-block" id="demand_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.commodities.demand_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">demand_constraint</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">dem</span><span class="p">:</span> <span class="n">Commodity</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    The Demand constraint drives the model.  This constraint ensures that supply at</span>
+<span class="sd">    least meets the demand specified by the Demand parameter in all periods and</span>
+<span class="sd">    slices, by ensuring that the sum of all the demand output commodity (:math:`c`)</span>
+<span class="sd">    generated by both commodity flow at the time slice level (:math:`\textbf{FO}`) and</span>
+<span class="sd">    the annual level (:math:`\textbf{FOA}`) must meet the modeler-specified demand</span>
+<span class="sd">    in each time slice.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: Demand</span>
+
+<span class="sd">           \sum_{I, T-T^{a}, V} \textbf{FO}_{r, p, s, d, i, t \not \in T^{a}, v, dem} +</span>
+<span class="sd">           SEG_{s,d} \cdot  \sum_{I, T^{a}, V} \textbf{FOA}_{r, p, i, t \in T^{a}, v, dem}</span>
+<span class="sd">           =</span>
+<span class="sd">           {DEM}_{r, p, dem} \cdot {DSD}_{r, s, d, dem}</span>
+
+<span class="sd">    Note that the validity of this constraint relies on the fact that the</span>
+<span class="sd">    :math:`C^d` set is distinct from both :math:`C^e` and :math:`C^p`. In other</span>
+<span class="sd">    words, an end-use demand must only be an end-use demand.  Note that if an output</span>
+<span class="sd">    could satisfy both an end-use and internal system demand, then the output from</span>
+<span class="sd">    :math:`\textbf{FO}` and :math:`\textbf{FOA}` would be double counted.&quot;&quot;&quot;</span>
+
+    <span class="c1"># All demand techs are annual now</span>
+    <span class="c1"># supply = sum(</span>
+    <span class="c1">#     M.v_flow_out[r, p, s, d, s_i, s_t, s_v, dem]</span>
+    <span class="c1">#     for s_t, s_v in M.commodity_up_stream_process[r, p, dem]</span>
+    <span class="c1">#     if s_t not in M.tech_annual</span>
+    <span class="c1">#     for s_i in M.process_inputs_by_output[r, p, s_t, s_v, dem]</span>
+    <span class="c1"># )</span>
+
+    <span class="n">supply_annual</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">demand_constraint_error_check</span><span class="p">(</span><span class="n">supply_annual</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">supply_annual</span> <span class="o">==</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">demand</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<span class="c1"># devnote: no longer needed</span>
+<div class="viewcode-block" id="demand_activity_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.commodities.demand_activity_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">demand_activity_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span>
+    <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span>
+    <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span>
+    <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span>
+    <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span>
+    <span class="n">t</span><span class="p">:</span> <span class="n">Technology</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">Vintage</span><span class="p">,</span>
+    <span class="n">dem</span><span class="p">:</span> <span class="n">Commodity</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">    For end-use demands, it is unreasonable to let the model arbitrarily shift the</span>
+<span class="sd">    use of demand technologies across time slices. For instance, if household A buys</span>
+<span class="sd">    a natural gas furnace while household B buys an electric furnace, then both units</span>
+<span class="sd">    should be used throughout the year.  Without this constraint, the model might choose</span>
+<span class="sd">    to only use the electric furnace during the day, and the natural gas furnace during the</span>
+<span class="sd">    night.</span>
+
+<span class="sd">    This constraint ensures that the ratio of a process activity to demand is</span>
+<span class="sd">    constant for all time slices.  Note that if a demand is not specified in a given</span>
+<span class="sd">    time slice, or is zero, then this constraint will not be considered for that</span>
+<span class="sd">    slice and demand.  This is transparently handled by the :math:`\Theta` superset.</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: DemandActivity</span>
+
+<span class="sd">          DEM_{r, p, s, d, dem} \cdot \sum_{I} \textbf{FO}_{r, p, s_0, d_0, i, t \not \in T^{a}, v, dem}</span>
+<span class="sd">       =</span>
+<span class="sd">          DEM_{r, p, s_0, d_0, dem} \cdot \sum_{I} \textbf{FO}_{r, p, s, d, i, t \not \in T^{a}, v, dem}</span>
+
+<span class="sd">       \\</span>
+<span class="sd">       \forall \{r, p, s, d, t, v, dem, s_0, d_0\} \in \Theta_{\text{DemandActivity}}</span>
+
+<span class="sd">    Note that this constraint is only applied to the demand commodities with diurnal</span>
+<span class="sd">    variations, and therefore the equation above only includes :math:`\textbf{FO}`</span>
+<span class="sd">    and not  :math:`\textbf{FOA}`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">activity</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">annual_activity</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="n">expr</span> <span class="o">=</span> <span class="n">annual_activity</span> <span class="o">*</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">])</span> <span class="o">==</span> <span class="n">activity</span>
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="commodity_balance_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.commodities.commodity_balance_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">commodity_balance_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">s</span><span class="p">:</span> <span class="n">Season</span><span class="p">,</span> <span class="n">d</span><span class="p">:</span> <span class="n">TimeOfDay</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">Commodity</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Where the Demand constraint :eq:`Demand` ensures that end-use demands are met,</span>
+<span class="sd">    the CommodityBalance constraint ensures that the endogenous system demands are</span>
+<span class="sd">    met.  This constraint requires the total production of a given commodity</span>
+<span class="sd">    to equal the amount consumed, thus ensuring an energy balance at the system</span>
+<span class="sd">    level. In this most general form of the constraint, the energy commodity being</span>
+<span class="sd">    balanced has variable production at the time slice level. The energy commodity</span>
+<span class="sd">    can then be consumed by three types of processes: storage technologies, non-storage</span>
+<span class="sd">    technologies with output that varies at the time slice level, and non-storage</span>
+<span class="sd">    technologies with constant annual output.</span>
+
+<span class="sd">    Separate expressions are required in order to account for the consumption of</span>
+<span class="sd">    commodity :math:`c` by downstream processes. For the commodity flow into storage</span>
+<span class="sd">    technologies, we use :math:`\textbf{FI}_{r, p, s, d, i, t, v, c}`. Note that the FlowIn</span>
+<span class="sd">    variable is defined only for storage technologies, and is required because storage</span>
+<span class="sd">    technologies balance production and consumption across time slices rather than</span>
+<span class="sd">    within a single time slice. For commodity flows into non-storage processes with time</span>
+<span class="sd">    varying output, we use :math:`\textbf{FO}_{r, p, s, d, i, t, v, c}/EFF_{r, i,t,v,o}`.</span>
+<span class="sd">    The division by :math:`EFF_{r, c,t,v,o}` is applied to the output flows that consume</span>
+<span class="sd">    commodity :math:`c` to determine input flows. Finally, we need to account</span>
+<span class="sd">    for the consumption of commodity :math:`c` by the processes in</span>
+<span class="sd">    :code:`tech_annual`. Since the commodity flow of these processes is on an</span>
+<span class="sd">    annual basis, we use :math:`SEG_{s,d}` to calculate the consumption of</span>
+<span class="sd">    commodity :math:`c` in time-slice :math:`(s,d)` from the annual flows.</span>
+<span class="sd">    Formulating an expression for the production of commodity :math:`c` is</span>
+<span class="sd">    more straightforward, and is simply calculated by</span>
+<span class="sd">    :math:`\textbf{FO}_{r, p, s, d, i, t, v, c}`.</span>
+
+<span class="sd">    In some cases, the overproduction of a commodity may be required, such</span>
+<span class="sd">    that the supply exceeds the endogenous demand. Refineries represent a</span>
+<span class="sd">    common example, where the share of different refined products are governed</span>
+<span class="sd">    by TechOutputSplit, but total production is driven by a particular commodity</span>
+<span class="sd">    like gasoline. Such a situation can result in the overproduction of other</span>
+<span class="sd">    refined products, such as diesel or kerosene. In such cases, we need to</span>
+<span class="sd">    track the excess production of these commodities. To do so, the technology</span>
+<span class="sd">    producing the excess commodity should be added to the :code:`tech_flex` set.</span>
+<span class="sd">    This flexible technology designation will activate a slack variable</span>
+<span class="sd">    (:math:`\textbf{FLX}_{r, p, s, d, i, t, v, c}`) representing</span>
+<span class="sd">    the excess production in the :code:`CommodityBalanceAnnual_constraint`. Note</span>
+<span class="sd">    that the :code:`tech_flex` set is different from :code:`tech_curtailment` set;</span>
+<span class="sd">    the latter is technology- rather than commodity-focused and is used in the</span>
+<span class="sd">    :code:`Capacity_constraint` to track output that is used to produce useful</span>
+<span class="sd">    output and the amount curtailed, and to ensure that the installed capacity</span>
+<span class="sd">    covers both. Alternatively, the commodity can be added to the</span>
+<span class="sd">    :code:`commodity_waste` set, for which this equality constraint becomes an</span>
+<span class="sd">    inequality constraint, allowing production to exceed consumption for a single</span>
+<span class="sd">    commodity.</span>
+
+<span class="sd">    This constraint also accounts for imports and exports between regions</span>
+<span class="sd">    when solving multi-regional systems. The import (:math:`\textbf{FIM}`) and export</span>
+<span class="sd">    (:math:`\textbf{FEX}`) variables are created on-the-fly by summing the</span>
+<span class="sd">    :math:`\textbf{FO}` variables over the appropriate import and export regions,</span>
+<span class="sd">    respectively, which are defined in :code:`temoa_initialize.py` by parsing the</span>
+<span class="sd">    :code:`tech_exchange` processes.</span>
+
+<span class="sd">    Consumption of the commodity by construction inputs is annualised using the period</span>
+<span class="sd">    length. Production of the commodity by end-of-life outputs uses the AnnualRetirement</span>
+<span class="sd">    variable, which is already annualised.</span>
+
+<span class="sd">    Finally, for annual commodities, AnnualCommodityBalance is used which balances</span>
+<span class="sd">    the sum of flows over each year.</span>
+
+<span class="sd">    *process outputs + imports + end of life outputs = process inputs + construction inputs + exports + flex waste*</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">       :label: CommodityBalance</span>
+
+<span class="sd">            \begin{aligned}</span>
+<span class="sd">            &amp;\sum_{I, t \notin T^a, V} \mathbf{FO}_{r, p, s, d, i, t, v, c}</span>
+<span class="sd">            &amp;&amp; \text{(processes outputting commodity)} \\</span>
+<span class="sd">            &amp;+ SEG_{s,d} \cdot \sum_{I, t \in T^a, V} \frac{\mathbf{FOA}_{r, p, i, t, v, c}}{EFF_{r, i, t, v, c}}</span>
+<span class="sd">            &amp;&amp; \text{(annual processes outputting commodity)} \\</span>
+<span class="sd">            &amp;+ \sum_{\text{reg} \neq r, I, t \in T^x, V} \mathbf{FIM}_{r - \text{reg}, p, s, d, i, t, v, c}</span>
+<span class="sd">            &amp;&amp; \text{(inter-regional imports of commodity)} \\</span>
+<span class="sd">            &amp;+ SEG_{s,d} \sum_{T, V} \left ( EOLO_{r, t, v, c} \cdot \textbf{ART}_{r, p, t, v} \right )</span>
+<span class="sd">            &amp;&amp; \text{(end-of-life outputs of commodity)} \\</span>
+<span class="sd">            &amp;\begin{cases}</span>
+<span class="sd">            &amp;= \text{if } c \notin C^w \\</span>
+<span class="sd">            &amp;\geq \text{if } c \in C^w \end{cases} \\</span>
+<span class="sd">            &amp;\sum_{t \in T^s, V, O} \mathbf{FIS}_{r, p, s, d, c, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(commodity stored)} \\</span>
+<span class="sd">            &amp;+ \sum_{t \notin T^s, V, O} \frac{\mathbf{FO}_{r, p, s, d, c, t, v, o}}{EFF_{r, c, t, v, o}}</span>
+<span class="sd">            &amp;&amp; \text{(commodity consumed by processes)} \\</span>
+<span class="sd">            &amp;+ SEG_{s,d} \cdot \sum_{t \in T^a, V, O} \frac{\mathbf{FOA}_{r, p, c, t, v, o}}{EFF_{r, c, t, v, o}}</span>
+<span class="sd">            &amp;&amp; \text{(commodity consumed by annual processes)} \\</span>
+<span class="sd">            &amp;+ \sum_{\text{reg} \neq r, t \in T^x, V, O} \mathbf{FEX}_{r - \text{reg}, p, s, d, c, t, v, o}</span>
+<span class="sd">            &amp;&amp; \text{(inter-regional exports of commodity)} \\</span>
+<span class="sd">            &amp;+ \sum_{I, t \in T^f, V} \mathbf{FLX}_{r, p, s, d, i, t, v, c}</span>
+<span class="sd">            &amp;&amp; \text{(flex wastes of commodity)} \\</span>
+<span class="sd">            &amp;+ SEG_{s,d} \cdot \sum_{T, V} \left ( CON_{r, c, t, v} \cdot \frac{\textbf{NCAP}_{r, t, v}}{LEN_p} \right )</span>
+<span class="sd">            &amp;&amp; \text{(consumed annually by construction inputs)}</span>
+<span class="sd">            \end{aligned}</span>
+
+<span class="sd">            \qquad \forall \{r, p, s, d, c\} \in \Theta_{\text{CommodityBalance}}</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">produced</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">consumed</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">:</span>
+        <span class="c1"># Only storage techs have a flow in variable</span>
+        <span class="c1"># For other techs, it would be redundant as in = out / eff</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Into flows</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Into annual flows</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s_o</span><span class="p">])</span>
+                <span class="k">if</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_demand</span>
+                <span class="k">else</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_consumption_techs</span><span class="p">:</span>
+        <span class="c1"># Consumed by building capacity</span>
+        <span class="c1"># Assume evenly distributed over a year</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">construction_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">p</span><span class="p">])</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_consumption_techs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">:</span>
+        <span class="c1"># From flows including output from storage</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="c1"># From annual flows</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_flex</span><span class="p">:</span>
+            <span class="c1"># Wasted by flex flows</span>
+            <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flex</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span>
+                <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="c1"># Wasted by annual flex flows</span>
+            <span class="n">consumed</span> <span class="o">+=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flex_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span>
+                <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_production_processes</span><span class="p">:</span>
+        <span class="c1"># Produced by retiring capacity</span>
+        <span class="c1"># Assume evenly distributed over a year</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span> <span class="o">*</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">end_of_life_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_annual_retirement</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_production_processes</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="c1"># export of commodity c from region r to other regions</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">:</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">reg</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">reg</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">reg</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">reg</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">reg</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">reg</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">S_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+
+    <span class="c1"># import of commodity c from other regions into region r</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">:</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">reg</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">reg</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">reg</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">reg</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+
+    <span class="n">commodity_balance_constraint_error_check</span><span class="p">(</span>
+        <span class="n">produced</span><span class="p">,</span>
+        <span class="n">consumed</span><span class="p">,</span>
+        <span class="n">r</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">,</span>
+        <span class="n">s</span><span class="p">,</span>
+        <span class="n">d</span><span class="p">,</span>
+        <span class="n">c</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_waste</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">produced</span> <span class="o">&gt;=</span> <span class="n">consumed</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">produced</span> <span class="o">==</span> <span class="n">consumed</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<div class="viewcode-block" id="annual_commodity_balance_constraint">
+<a class="viewcode-back" href="../../../mathematical_formulation.html#temoa.components.commodities.annual_commodity_balance_constraint">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">annual_commodity_balance_constraint</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">,</span> <span class="n">r</span><span class="p">:</span> <span class="n">Region</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">Period</span><span class="p">,</span> <span class="n">c</span><span class="p">:</span> <span class="n">Commodity</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExprLike</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Similar to CommodityBalance_constraint but only balances the supply and demand of the commodity</span>
+<span class="sd">    at the period level, summing all flows over the period but allowing imbalances at the time slice</span>
+<span class="sd">    or seasonal level. Applies only to commodities in the :code:`commodity_annual` set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">produced</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">consumed</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">:</span>
+        <span class="c1"># Only storage techs have a flow in variable</span>
+        <span class="c1"># For other techs, it would be redundant as in = out / eff</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_in</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_storage</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_down_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_outputs_by_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_consumption_techs</span><span class="p">:</span>
+        <span class="c1"># Consumed by building capacity</span>
+        <span class="c1"># Assume evenly distributed over a year</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="p">(</span>
+            <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">construction_input</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">p</span><span class="p">])</span> <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_new_capacity</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">capacity_consumption_techs</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">period_length</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">:</span>
+        <span class="c1"># Includes output from storage</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+            <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_flex</span><span class="p">:</span>
+            <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flex</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+                <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span>
+                <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+                <span class="n">model</span><span class="o">.</span><span class="n">v_flex_annual</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_up_stream_process</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span> <span class="ow">and</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+                <span class="k">for</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">process_inputs_by_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_production_processes</span><span class="p">:</span>
+        <span class="c1"># Produced by retiring capacity</span>
+        <span class="c1"># Assume evenly distributed over a year</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">end_of_life_output</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">])</span>
+            <span class="o">*</span> <span class="n">model</span><span class="o">.</span><span class="n">v_annual_retirement</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">retirement_production_processes</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="c1"># export of commodity c from region r to other regions</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">:</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">s_r</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">get_variable_efficiency</span><span class="p">(</span>
+                <span class="n">model</span><span class="p">,</span> <span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">s_r</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">s_d</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+            <span class="k">for</span> <span class="n">s_r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+        <span class="n">consumed</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">s_r</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="o">/</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="p">[</span><span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">s_r</span><span class="p">),</span> <span class="n">c</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">export_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+
+    <span class="c1"># import of commodity c from other regions into region r</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">:</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out</span><span class="p">[</span><span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">s_r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">r</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_s</span><span class="p">,</span> <span class="n">S_d</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">S_d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+            <span class="k">for</span> <span class="n">s_r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+        <span class="n">produced</span> <span class="o">+=</span> <span class="nb">sum</span><span class="p">(</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">v_flow_out_annual</span><span class="p">[</span><span class="n">cast</span><span class="p">(</span><span class="n">Region</span><span class="p">,</span> <span class="n">s_r</span> <span class="o">+</span> <span class="s1">&#39;-&#39;</span> <span class="o">+</span> <span class="n">r</span><span class="p">),</span> <span class="n">p</span><span class="p">,</span> <span class="n">s_i</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">s_r</span><span class="p">,</span> <span class="n">s_t</span><span class="p">,</span> <span class="n">s_v</span><span class="p">,</span> <span class="n">s_i</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">import_regions</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">c</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">s_t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_annual</span>
+        <span class="p">)</span>
+
+    <span class="n">annual_commodity_balance_constraint_error_check</span><span class="p">(</span>
+        <span class="n">produced</span><span class="p">,</span>
+        <span class="n">consumed</span><span class="p">,</span>
+        <span class="n">r</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">,</span>
+        <span class="n">c</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_waste</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">produced</span> <span class="o">&gt;=</span> <span class="n">consumed</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">produced</span> <span class="o">==</span> <span class="n">consumed</span>
+
+    <span class="k">return</span> <span class="n">expr</span></div>
+
+
+
+<span class="c1"># ============================================================================</span>
+<span class="c1"># PRE-COMPUTATION FUNCTIONS</span>
+<span class="c1"># ============================================================================</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_technology_and_commodity_sets</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Populates technology and commodity subset definitions based on their roles</span>
+<span class="sd">    (e.g., demand, flexible) identified from the efficiency parameter.</span>
+
+<span class="sd">    This function iterates through the `efficiency` parameter to identify and</span>
+<span class="sd">    add technologies and commodities to special `Pyomo.Set` objects on the model.</span>
+
+<span class="sd">    Populates:</span>
+<span class="sd">        - M.commodity_flex: Commodities that can be over-produced.</span>
+<span class="sd">        - M.tech_demand: Technologies that directly satisfy an end-use demand.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Creating technology and commodity subsets.&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">_r</span><span class="p">,</span> <span class="n">_i</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">_v</span><span class="p">,</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">efficiency</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_flex</span> <span class="ow">and</span> <span class="n">o</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_flex</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">commodity_flex</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">o</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">commodity_demand</span> <span class="ow">and</span> <span class="n">t</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">tech_demand</span><span class="p">:</span>
+            <span class="n">model</span><span class="o">.</span><span class="n">tech_demand</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">create_demands</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">TemoaModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Steps to create the demand distributions</span>
+<span class="sd">    1. Use Demand keys to ensure that all demands in commodity_demand are used</span>
+<span class="sd">    2. Find any slices not set in DemandDefaultDistribution, and set them based</span>
+<span class="sd">    on the associated segment_fraction slice.</span>
+<span class="sd">    3. Validate that the DemandDefaultDistribution sums to 1.</span>
+<span class="sd">    4. Find any per-demand demand_specific_distribution values not set, and set</span>
+<span class="sd">    them from DemandDefaultDistribution.  Note that this only sets a</span>
+<span class="sd">    distribution for an end-use demand if the user has *not* specified _any_</span>
+<span class="sd">    anything for that end-use demand.  Thus, it is up to the user to fully</span>
+<span class="sd">    specify the distribution, or not.  No in-between.</span>
+<span class="sd">     5. Validate that the per-demand distributions sum to 1.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Started creating demand distributions in CreateDemands()&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Step 0: some setup for a couple of reusable items</span>
+    <span class="c1"># Get the nth element from the tuple (r, p, s, d, dem)</span>
+    <span class="c1"># So we only have to update these indices in one place if they change</span>
+    <span class="n">demand_specific_distribution_region</span> <span class="o">=</span> <span class="n">iget</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">demand_specific_distribution_period</span> <span class="o">=</span> <span class="n">iget</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">demand_specific_distributon_dem</span> <span class="o">=</span> <span class="n">iget</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+
+    <span class="c1"># Step 1: Check if any demand commodities are going unused</span>
+    <span class="n">used_dems</span> <span class="o">=</span> <span class="p">{</span><span class="n">dem</span> <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">demand</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()}</span>
+    <span class="n">unused_dems</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">commodity_demand</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">used_dems</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">unused_dems</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">unused_dems</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Warning: Demand &#39;</span><span class="si">{}</span><span class="s2">&#39; is unused</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dem</span><span class="p">))</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dem</span><span class="p">))</span>
+
+    <span class="c1"># devnote: DDD just clones segment_fraction. Unless we want to specify it in the database,</span>
+    <span class="c1">#          makes sense to just use segment_fraction directly</span>
+    <span class="c1"># Step 2: Build the demand default distribution (= segment_fraction)</span>
+    <span class="c1"># DDD = M.DemandDefaultDistribution  # Shorter, for us lazy programmer types</span>
+    <span class="c1"># unset_defaults = set(M.segment_fraction.sparse_iterkeys())</span>
+    <span class="c1"># unset_defaults.difference_update(DDD.sparse_iterkeys())</span>
+    <span class="c1"># if unset_defaults:</span>
+    <span class="c1"># Some hackery because Pyomo thinks that this Param is constructed.</span>
+    <span class="c1"># However, in our view, it is not yet, because we&#39;re specifically</span>
+    <span class="c1"># targeting values that have not yet been constructed, that we know are</span>
+    <span class="c1"># valid, and that we will need.</span>
+    <span class="c1"># DDD._constructed = False</span>
+    <span class="c1"># for tslice in unset_defaults:</span>
+    <span class="c1">#     DDD[tslice] = M.segment_fraction[tslice]  # DDD._constructed = True</span>
+
+    <span class="c1"># Step 3: Check that DDD sums to 1</span>
+    <span class="c1"># devnote: this seems redundant to the segment_fraction sum to 1 check.</span>
+    <span class="c1"># total = sum(i for i in DDD.values())</span>
+    <span class="c1"># if abs(value(total) - 1.0) &gt; 0.001:</span>
+    <span class="c1">#     # We can&#39;t explicitly test for &quot;!= 1.0&quot; because of incremental rounding</span>
+    <span class="c1">#     # errors associated with the specification of demand shares by time slice,</span>
+    <span class="c1">#     # but we check to make sure it is within the specified tolerance.</span>
+
+    <span class="c1">#     key_padding = max(map(get_str_padding, DDD.sparse_iterkeys()))</span>
+
+    <span class="c1">#     fmt = &#39;%%-%ds = %%s&#39; % key_padding</span>
+    <span class="c1">#     # Works out to something like &quot;%-25s = %s&quot;</span>
+
+    <span class="c1">#     items = sorted(DDD.items())</span>
+    <span class="c1">#     items = &#39;\n   &#39;.join(fmt % (str(k), v) for k, v in items)</span>
+
+    <span class="c1">#     msg = (</span>
+    <span class="c1">#         &#39;The values of the DemandDefaultDistribution parameter do not &#39;</span>
+    <span class="c1">#         &#39;sum to 1.  The DemandDefaultDistribution specifies how end-use &#39;</span>
+    <span class="c1">#         &#39;demands are distributed among the time slices (i.e., time_season, &#39;</span>
+    <span class="c1">#         &#39;time_of_day), so together, the data must total to 1.  Current &#39;</span>
+    <span class="c1">#         &#39;values:\n   {}\n\tsum = {}&#39;</span>
+    <span class="c1">#     )</span>
+    <span class="c1">#     logger.error(msg.format(items, total))</span>
+    <span class="c1">#     raise ValueError(msg.format(items, total))</span>
+
+    <span class="c1"># Step 4: Fill out demand specific distribution table and check sums to 1 by region and demand</span>
+    <span class="n">demand_specific_distribution</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">demand_specific_distribution</span>
+
+    <span class="n">demands_specified</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+        <span class="nb">map</span><span class="p">(</span>
+            <span class="n">demand_specific_distributon_dem</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">demand_specific_distribution</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()),</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">unset_demand_distributions</span> <span class="o">=</span> <span class="n">used_dems</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span>
+        <span class="n">demands_specified</span>
+    <span class="p">)</span>  <span class="c1"># the demands not mentioned in DSD *at all*</span>
+
+    <span class="k">if</span> <span class="n">unset_demand_distributions</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_optimize</span><span class="p">:</span>
+            <span class="n">unset_distributions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+                <span class="n">cross_product</span><span class="p">(</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">regions</span><span class="p">,</span>
+                    <span class="p">(</span><span class="n">p</span><span class="p">,),</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">],</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">,</span>
+                    <span class="n">unset_demand_distributions</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">unset_distributions</span><span class="p">:</span>
+                <span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span>
+                    <span class="n">model</span><span class="o">.</span><span class="n">segment_fraction</span><span class="p">[</span><span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">]</span>
+                <span class="p">)</span>  <span class="c1"># DSD._constructed = True</span>
+
+    <span class="c1"># Step 5: A final &quot;sum to 1&quot; check for all DSD members (which now should be everything)</span>
+    <span class="c1">#         Also check that all keys are made...  The demand distro should be supported</span>
+    <span class="c1">#         by the full set of (r, p, dem) keys because it is an equality constraint</span>
+    <span class="c1">#         and we need to ensure even the zeros are passed in</span>
+    <span class="n">used_rp_dems</span> <span class="o">=</span> <span class="p">{(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">demand</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()}</span>
+    <span class="k">for</span> <span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span> <span class="ow">in</span> <span class="n">used_rp_dems</span><span class="p">:</span>
+        <span class="n">expected_key_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">])</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span><span class="p">)</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">k</span>
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">demand_specific_distribution</span><span class="o">.</span><span class="n">sparse_iterkeys</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">demand_specific_distribution_region</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">==</span> <span class="n">r</span>
+            <span class="ow">and</span> <span class="n">demand_specific_distribution_period</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">==</span> <span class="n">p</span>
+            <span class="ow">and</span> <span class="n">demand_specific_distributon_dem</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="o">==</span> <span class="n">dem</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">!=</span> <span class="n">expected_key_length</span><span class="p">:</span>
+            <span class="c1"># this could be very slow but only calls when there&#39;s a problem</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_season</span><span class="p">[</span><span class="n">p</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">time_of_day</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">dem</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keys</span>
+            <span class="p">}</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s1">&#39;Missing some time slices for Demand Specific Distribution </span><span class="si">%s</span><span class="s1">: </span><span class="si">%s</span><span class="s1">&#39;</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">),</span>
+                <span class="n">missing</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">value</span><span class="p">(</span><span class="n">total</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.001</span><span class="p">:</span>
+            <span class="c1"># We can&#39;t explicitly test for &quot;!= 1.0&quot; because of incremental rounding</span>
+            <span class="c1"># errors associated with the specification of demand shares by time slice,</span>
+            <span class="c1"># but we check to make sure it is within the specified tolerance.</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">get_str_padding</span><span class="p">(</span><span class="n">obj</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="p">))</span>
+
+            <span class="n">key_padding</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">get_str_padding</span><span class="p">,</span> <span class="n">keys</span><span class="p">))</span>
+
+            <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">%%</span><span class="s1">-</span><span class="si">%d</span><span class="s1">s = </span><span class="si">%%</span><span class="s1">s&#39;</span> <span class="o">%</span> <span class="n">key_padding</span>
+            <span class="c1"># Works out to something like &quot;%-25s = %s&quot;</span>
+
+            <span class="n">items_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">value</span><span class="p">(</span><span class="n">demand_specific_distribution</span><span class="p">[</span><span class="n">k</span><span class="p">]))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">items</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">   &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">fmt</span> <span class="o">%</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">k</span><span class="p">),</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">items_list</span><span class="p">)</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s1">&#39;The values of the demand_specific_distribution parameter do not &#39;</span>
+                <span class="s1">&#39;sum to 1 for </span><span class="si">{}</span><span class="s1">. The demand_specific_distribution specifies how end-use &#39;</span>
+                <span class="s1">&#39;demands are distributed per time-slice (i.e., time_season, &#39;</span>
+                <span class="s1">&#39;time_of_day). Within each region, period, end-use demand, then, the distribution &#39;</span>
+                <span class="s1">&#39;must total to 1.</span><span class="se">\n\n</span><span class="s1"> Demand-specific distribution in error: &#39;</span>
+                <span class="s1">&#39; </span><span class="se">\n</span><span class="s1">   </span><span class="si">{}</span><span class="se">\n\t</span><span class="s1">sum = </span><span class="si">{}</span><span class="s1">&#39;</span>
+            <span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">),</span> <span class="n">items</span><span class="p">,</span> <span class="n">total</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">((</span><span class="n">r</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">dem</span><span class="p">),</span> <span class="n">items</span><span class="p">,</span> <span class="n">total</span><span class="p">))</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;Finished creating demand distributions&#39;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2011-2025, NC State University.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
