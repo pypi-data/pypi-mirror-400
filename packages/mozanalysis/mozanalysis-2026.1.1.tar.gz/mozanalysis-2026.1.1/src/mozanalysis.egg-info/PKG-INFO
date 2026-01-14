@@ -1,0 +1,116 @@
+Metadata-Version: 2.4
+Name: mozanalysis
+Version: 2026.1.1
+Summary: A library for Mozilla experiments analysis
+Author-email: Mozilla Corporation <fx-data-dev@mozilla.org>
+Project-URL: Repository, https://github.com/mozilla/mozanalysis
+Project-URL: Documentation, https://mozilla.github.io/mozanalysis/
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: attrs
+Requires-Dist: formulaic
+Requires-Dist: google-cloud-bigquery
+Requires-Dist: google-cloud-bigquery-storage
+Requires-Dist: marginaleffects==0.1.4
+Requires-Dist: matplotlib
+Requires-Dist: mozilla-metric-config-parser>=2024.4.1
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: pyarrow
+Requires-Dist: scipy
+Requires-Dist: SecretStorage
+Requires-Dist: statsmodels
+Provides-Extra: docs
+Requires-Dist: Sphinx; extra == "docs"
+Requires-Dist: sphinx-autobuild; extra == "docs"
+Requires-Dist: sphinx-rtd-theme; extra == "docs"
+Provides-Extra: testing
+Requires-Dist: mock; extra == "testing"
+Requires-Dist: mypy; extra == "testing"
+Requires-Dist: pandas-stubs; extra == "testing"
+Requires-Dist: pytest; extra == "testing"
+Requires-Dist: pytest-cov; extra == "testing"
+Requires-Dist: pytest-ruff; extra == "testing"
+Requires-Dist: pytest-timeout; extra == "testing"
+Requires-Dist: scipy-stubs; extra == "testing"
+Requires-Dist: ruff; extra == "testing"
+Provides-Extra: dev
+Requires-Dist: build; extra == "dev"
+Requires-Dist: mozanalysis[testing]; extra == "dev"
+Requires-Dist: pip-tools; extra == "dev"
+Requires-Dist: tox; extra == "dev"
+Requires-Dist: twine; extra == "dev"
+Dynamic: license-file
+
+# Mozilla Experiments Analysis [![CircleCI](https://circleci.com/gh/mozilla/mozanalysis.svg?style=svg)](https://circleci.com/gh/mozilla/mozanalysis) [![codecov](https://codecov.io/gh/mozilla/mozanalysis/branch/master/graph/badge.svg)](https://codecov.io/gh/mozilla/mozanalysis) [![CalVer - Timely Software Versioning](https://img.shields.io/badge/calver-YYYY.M.MINOR-22bfda.svg)](https://calver.org/)
+
+The `mozanalysis` Python library is a library to standardize experiment analysis
+at Mozilla for the purpose of producing decision reports templates that are
+edited by data scientists.
+
+## Documentation
+
+Online documentation is available at https://mozilla.github.io/mozanalysis/
+
+##  Installation from pypi
+- To install this package from pypi run:
+```
+pip install mozanalysis
+```
+
+## Local Installation
+### Dependencies
+Dependencies are specified in the `requirements.txt` and `requirements-dev.txt` files, which are used for testing and development respecitvely.
+To create a virtualenv and set up the package execute the following, replacing `requirements.txt` with `requirements-dev.txt` if you plan on contributing to the package.
+```bash
+# Create and activate a python virtual environment.
+python3 -m venv venv/
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e . --no-dependencies
+```
+
+## Development
+Linting and Formatting are done with Ruff.
+
+When adding new dependencies, add them to the `pyproject.toml` `dependencies` list.  Then generate updated requirements files using the script `script/update_deps`.  [`pip-compile` is called](https://pypi.org/project/pip-tools/) in this script, which uses the specified dependencies to create the `requirements.txt` and `requirements-dev.txt` files.  Finally, you'll want to update the requirements in your virtual env by running `pip install -r requirements-dev.txt`
+
+## Testing locally
+
+### With pytest
+Run `pytest` on the commandline from the root of the package file structure.
+
+### With tox
+
+Tox is included in the dev dependencies.  If you want to run with tox, install the dev dependencies in the `requirements-dev.txt` as detailed above.
+
+You can pass flags to tox to limit the different environments you test in
+or the tests you run. Options after `--` or positional arguments are forwarded to pytest.
+
+For example, you can run:
+
+* `tox -e lint` to lint
+
+* `tox -e py311 -- -k utils` to only run tests with "utils" somewhere in the name, on Python 3.11
+
+* `tox tests/test_utils.py` to run tests in a specific file
+
+## Deploying a new release
+
+Releasing mozanalysis happens by tagging a CalVer based Git tag with the
+following pattern:
+
+    YYYY.M.MINOR
+
+where YYYY is the four-digit year number, M is a single-digit month number and
+MINOR is a single-digit zero-based counter which does NOT relate to the day of
+the release. Valid versions numbers are:
+
+    2017.10.0
+    2018.1.0
+    2018.12.12
+
+Once the (signed) Git tag has been pushed to the main GitHub repository using
+git push origin --tags, Circle CI will automatically build and push a release to
+PyPI after the tests have passed.
