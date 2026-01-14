@@ -1,0 +1,106 @@
+[project]
+name = "cez-distribution-hdo"
+dynamic = ["version"]
+description = "Python library for reading and interpreting CEZ Distribution HDO (NT/VT) switch schedules."
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.13"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+authors = [
+    { name = "pokornyIt", email = "8665714+pokornyIt@users.noreply.github.com" },
+]
+keywords = ["cez", "hdo", "tariff", "nt", "vt", "home-assistant"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+]
+
+dependencies = ["httpx~=0.28.0"]
+
+[project.urls]
+Repository = "https://github.com/pokornyIt/cez-distribution-hdo"
+Issues = "https://github.com/pokornyIt/cez-distribution-hdo/issues"
+Releases = "https://github.com/pokornyIt/cez-distribution-hdo/releases"
+
+[dependency-groups]
+dev = [
+    "ruff~=0.14",
+    "pyright~=1.1",
+    "pytest~=9.0",
+    "pytest-asyncio~=1.3",
+    "pytest-httpx~=0.36",
+    "pre-commit>=4.5.1",
+    "pytest-cov>=7.0.0",
+]
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+fallback-version = "0.0.0"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+indent-width = 4
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 100
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D203",   # incorrect-blank-line-before-class vs D211
+    "D213",   # multi-line-summary-second-line vs D212
+    "D402",   # signature-in-docstring
+    "COM812", # missing-trailing-comma
+    "ISC001", # single-line-implicit-string-concatenation
+    "TC001",  # typing-only-first-party-import
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["D", "S101", "SLF001", "PLR2004"]
+"**/test_*.py" = ["D", "S101", "SLF001", "PLR2004"]
+"src/cez_distribution_hdo/__init__.py" = ["F401"]
+"examples/*" = ["T201", "EXE001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true
+known-first-party = ["cez_distribution_hdo"]
+combine-as-imports = true
+split-on-trailing-comma = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+log_cli = true
+log_cli_level = "INFO"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+log_format = "%(asctime)s %(levelname)s %(message)s"
+
+[tool.pyright]
+typeCheckingMode = "standard"
+include = ["src", "tests"]
+venvPath = "."
+venv = ".venv"
