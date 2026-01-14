@@ -1,0 +1,97 @@
+[project]
+name = "intake-esgf"
+description = "Programmatic access to the ESGF holdings"
+readme = "README.md"
+authors = [{ name = "Nathan Collier", email = "nathaniel.collier@gmail.com" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+]
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+    "dask>=2024.12.0",
+    "globus-sdk<4.0.0",
+    "netcdf4>=1.7.2",
+    "pandas>=2.2.3",
+    "pystac-client>=0.8.6",
+    "pyyaml>=6.0.2",
+    "requests>=2.32.3",
+    "requests-cache>=1.2.1",
+    "tqdm>=4.67.1",
+    "xarray>=2024.11.0",
+]
+dynamic = ["version"]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.17.0",
+    "pandas-stubs>=2.3.0.250703",
+    "pre-commit>=4.2.0",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "types-pyyaml>=6.0.12.20250516",
+    "types-requests>=2.32.4.20250611",
+    "types-tqdm>=4.67.0.20250516",
+]
+docs = [
+    "distributed>=2024.12.0",
+    "furo>=2024.8.6",
+    "ipywidgets>=8.1.5",
+    "matplotlib>=3.10.0",
+    "myst-nb>=1.1.2",
+    "nc-time-axis>=1.4.1",
+    "numpydoc>=1.8.0",
+    "sphinx-autosummary-accessors>=2023.4.0",
+    "sphinx-copybutton>=0.5.2",
+]
+notebook = ["ipywidgets>=8.1.5", "tqdm[notebook]>=4.67.1"]
+
+[build-system]
+requires = ["setuptools", "setuptools_scm", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "node-and-date"
+fallback_version = "0.0.0"
+version_file = "intake_esgf/_version.py"
+version_file_template = '__version__ = "{version}"'
+
+[tool.pytest.ini_options]
+console_output_style = "count"
+addopts = "--cov --cov-report=xml --verbose -m 'not (globus_auth or solr)'"
+markers = [
+    "globus_auth: tests which require globus authentication",
+    "solr: tests which need to communicate to a Solr index",
+]
+
+[tool.coverage.run]
+branch = true
+omit = ["*/intake_esgf/tests/*"]
+source = ["intake_esgf"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.ruff.lint]
+ignore = [
+    "E501", # let ruff worry about line length
+]
+select = [
+    "F",  # Pyflakes
+    "E",
+    "W",  # Pycodestyle
+    "I",  # isort
+    "UP", # Pyupgrade
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["intake_esgf"]

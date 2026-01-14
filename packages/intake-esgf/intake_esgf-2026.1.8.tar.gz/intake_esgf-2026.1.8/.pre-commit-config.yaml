@@ -1,0 +1,31 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: debug-statements
+      - id: mixed-line-ending
+  - repo: https://github.com/charliermarsh/ruff-pre-commit
+    rev: 'v0.12.2'
+    hooks:
+      # Run the linter.
+      - id: ruff-check
+        args: [ --fix ]
+      # Run the formatter.
+      - id: ruff-format
+  # mypy from git won't find deps in environment
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy intake_esgf
+        # This uses local uv installation
+        language: system
+        types: [ python ]
+        pass_filenames: false
+        require_serial: true
+        verbose: false
+        always_run: false
