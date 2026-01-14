@@ -1,0 +1,164 @@
+Metadata-Version: 2.4
+Name: diffusivity_step
+Version: 2026.1.8
+Summary: A SEAMM plug-in for Diffusivity
+Home-page: https://github.com/molssi-seamm/diffusivity_step
+Author: Paul Saxe
+Author-email: psaxe@molssi.org
+License: BSD-3-Clause
+Keywords: SEAMM,SEAMMplugin,flowchart
+Platform: Linux
+Platform: Mac OS-X
+Platform: Unix
+Platform: Windows
+Classifier: Environment :: Plugins
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Chemistry
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: License :: OSI Approved :: BSD License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Description-Content-Type: text/x-rst
+License-File: LICENSE
+License-File: AUTHORS.rst
+Requires-Dist: molsystem
+Requires-Dist: numpy
+Requires-Dist: scipy
+Requires-Dist: seamm
+Requires-Dist: seamm-util
+Requires-Dist: seamm-widgets
+Requires-Dist: tabulate
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: platform
+Dynamic: requires-dist
+Dynamic: summary
+
+=========================
+SEAMM Diffusivity Plug-in
+=========================
+
+.. image:: https://img.shields.io/github/issues-pr-raw/molssi-seamm/diffusivity_step
+   :target: https://github.com/molssi-seamm/diffusivity_step/pulls
+   :alt: GitHub pull requests
+
+.. image:: https://github.com/molssi-seamm/diffusivity_step/workflows/CI/badge.svg
+   :target: https://github.com/molssi-seamm/diffusivity_step/actions
+   :alt: Build Status
+
+.. image:: https://codecov.io/gh/molssi-seamm/diffusivity_step/branch/master/graph/badge.svg
+   :target: https://codecov.io/gh/molssi-seamm/diffusivity_step
+   :alt: Code Coverage
+
+.. image:: https://github.com/molssi-seamm/diffusivity_step/workflows/CodeQL/badge.svg
+   :target: https://github.com/molssi-seamm/diffusivity_step/security/code-scanning
+   :alt: Code Quality
+
+.. image:: https://github.com/molssi-seamm/diffusivity_step/workflows/Release/badge.svg
+   :target: https://molssi-seamm.github.io/diffusivity_step/index.html
+   :alt: Documentation Status
+
+.. image:: https://img.shields.io/pypi/v/diffusivity_step.svg
+   :target: https://pypi.python.org/pypi/diffusivity_step
+   :alt: PyPi VERSION
+
+A SEAMM plug-in for Diffusivity
+
+* Free software: BSD-3-Clause
+* Documentation: https://molssi-seamm.github.io/diffusivity_step/index.html
+* Code: https://github.com/molssi-seamm/diffusivity_step
+
+Features
+--------
+
+* Please edit this section!
+
+Acknowledgements
+----------------
+
+This package was created with the `molssi-seamm/cookiecutter-seamm-plugin`_ tool, which
+is based on the excellent Cookiecutter_.
+
+.. _Cookiecutter: https://github.com/audreyr/cookiecutter
+.. _`molssi-seamm/cookiecutter-seamm-plugin`: https://github.com/molssi-seamm/cookiecutter-seamm-plugin
+
+Developed by the Molecular Sciences Software Institute (MolSSI_),
+which receives funding from the `National Science Foundation`_ under
+award CHE-2136142.
+
+.. _MolSSI: https://molssi.org
+.. _`National Science Foundation`: https://www.nsf.gov
+
+
+=======
+History
+=======
+2026.1.8 -- Enhancement to use atomic position and velocity trajectories
+    * Add support for the atomic position and velocity trajectories for
+      forcefields/potentials such as EAM/MEAM where there are no bonds, and hence the
+      center-of-mass trajectories used from molecules are not allowed by LAMMPS.
+
+2025.9.23 -- Bugfix: Fixed error storing diffusion constants as properties
+
+2024.7.30.1 -- Bugfix: Reinitialization of data in loops
+    * Fixed a bug where the data was not being correctly initialized if the step was in
+      a loop. This caused the timing results to be incorrect.
+    * Added actual number of samples for the MSD and length of the Helfand integral to
+      the results.
+
+2024.7.30 -- Added optional correction for cell size
+    * Added an option to use the Yeh-Hummer hydrostatic correction for the effects of
+      the finite cell size. The viscosity is required as an input, but the correction
+      eliminates the need to extrapolate to 1/L = 0.
+    * Added control parameters and timings to the available results.
+      
+2024.7.21 -- Significant improvements!
+    * Simplified error analysis to safe approach of analyzing the diffusion constants
+      over runs.
+    * Improved fitting of the curves to focus on the central linear portion. There are
+      reasonable defaults but the user can adjust as needed.
+    * Provided a combined average and error bars when both the MSF approach and Helfand
+      moments are used.
+    * Capture temperature, pressure, and cell size from the MD step, providing 1/L as a
+      result since the true diffusion constants are found by extrapolating to 1/L = 0.
+    * Provided control over the number of steps for the expensive numerical integration
+      in the Helfand moments, providing a reasonable default of 1000.
+      
+2024.7.15 -- Bugfix: Significant error in Helfand Moment approach
+    * Now fixed and seems to be working.
+      
+2024.7.4 -- Improved fitting of curves
+    * Removed weighting of the fit by the stdev since it is too biased to the beginning
+    * Added control over the portion of the data to fit in order to avoid the initial
+      curvature and poor data towards the end.
+	
+2024.6.3 -- Bugfix: handling of options for subflowchart
+    * Fixed a bug where the options for the subflowchart were not being parsed
+      correctly.
+
+2024.5.26 -- Updated for new task handling
+    * The new handling of running tasks such as LAMMPS required a small change in the
+      code.
+      
+2023.9.5 -- Changed default to using only MSD
+    * The Helfand moments approach seems give incorrect results if the sampling time is
+      too long. It is not dramatic, but gives increasingly incorrect results as the
+      sampling time is increased. Thus using the Helfand moments is dangerous because
+      the results may be wrong, but not obviously so.
+
+2023.8.30 -- Initial working version
+    * A working version that has been tested somewhat. Further testing and documentation
+      will follow
+
+2023.5.8 -- Initial development version created
+    * Plug-in created using the SEAMM plug-in cookiecutter.
