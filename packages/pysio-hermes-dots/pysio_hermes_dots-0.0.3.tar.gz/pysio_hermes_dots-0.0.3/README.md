@@ -1,0 +1,52 @@
+# HERMES - Movella DOTs
+
+Support package to interface the [Movella DOTs](https://www.movella.com/wearables/movella-dot) commercial IMUs in [HERMES](https://github.com/maximyudayev/hermes).
+
+## Options
+
+### `oem`
+Interfaces IMUs through the OEM provided PC SDK. Follow [these instructions](https://base.movella.com/s/article/Movella-DOT-PC-SDK-Guide?language=en_US) to download and install the prerequisite SDK on Windows.
+
+#### Pros
+* OEM provided SDK
+* This wrapper fixes misalignment issues of the OEM SDK of arrived samples
+
+#### Cons
+* OEM PC SDK limits usage only to `Python>=3.7,<3.11`
+* OEM PC SDK requires `numpy==1.26.*`
+* OEM PC SDK works only on Windows devices (Linux SDK fails syncing sensors)
+* OEM PC SDK works on [few Bluetooth adapters](https://base.movella.com/s/article/Movella-DOT-PC-SDK-Guide?language=en_US)
+
+### `bleak` [WIP]
+Interfaces IMUs directly via the Bluetooth [service spec](https://www.xsens.com/hubfs/Downloads/Manuals/Xsens%20DOT%20BLE%20Services%20Specifications.pdf?hsCtaTracking=baad1873-e6ff-47df-b608-86a46ac4a8ed%7C311751ac-09b3-4afd-bac6-27ea8c1ff346), using the [pyimu-dots](https://github.com/maximyudayev/pyimu-dots) AsyncIO package.
+
+#### Pros
+* Cross-platform
+* Supported on `Python>=3.4`
+* Compatible with a wide range of Bluetooth adapters
+* Aligns received individual samples across sensors based on synced timestamps
+* Works on constrained devices
+
+#### Cons
+* Limited to Movella's Bluetooth [service spec](https://www.xsens.com/hubfs/Downloads/Manuals/Xsens%20DOT%20BLE%20Services%20Specifications.pdf?hsCtaTracking=baad1873-e6ff-47df-b608-86a46ac4a8ed%7C311751ac-09b3-4afd-bac6-27ea8c1ff346) (future features may not be supported, won't work if spec is close-sourced and changed in the future)
+
+## Installation
+The `oem` is installed as an optional package `'pysio-hermes-dots[oem]'`.
+Both options available under the same namespace `hermes.dots` package upon installation, as `DotsOemProducer` or `DotsBleakProducer`, respectively.
+
+### From PyPI
+```bash
+pip install pysio-hermes-dots
+```
+
+### From source
+```bash
+git clone https://github.com/maximyudayev/hermes-dots.git
+pip install -e hermes-dots
+```
+
+## Usage
+Using the device follows the standard [configuration file specification](https://yudayev.com/hermes) process of HERMES nodes.
+
+## Citation
+When using any parts of this repository outside of its intended use, please cite the parent project [HERMES](https://github.com/maximyudayev/hermes).
