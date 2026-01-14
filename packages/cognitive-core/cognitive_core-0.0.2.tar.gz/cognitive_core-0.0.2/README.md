@@ -1,0 +1,214 @@
+# Cognitive Core
+
+**A meta-learning framework for learning from agent trajectories.**
+
+Cognitive Core (internally "ATLAS" - Adaptive Trajectory Learning and Abstraction System) accumulates knowledge from successful and failed task attempts, extracting reusable patterns and strategies to improve future performance.
+
+## Installation
+
+### Python (PyPI)
+
+```bash
+# Basic installation
+pip install cognitive-core
+
+# With all optional dependencies
+pip install cognitive-core[all]
+
+# Specific features
+pip install cognitive-core[arc]        # ARC environment support
+pip install cognitive-core[swe]        # SWE environment with Docker
+pip install cognitive-core[embeddings] # Sentence transformers for embeddings
+pip install cognitive-core[vector-stores] # ChromaDB for vector storage
+```
+
+### TypeScript (npm)
+
+```bash
+npm install cognitive-core
+```
+
+**Note:** The TypeScript package requires Python 3.10+ with `cognitive-core` installed.
+
+## Overview
+
+Cognitive Core is organized around **three pillars** and **three primitives**:
+
+### Primitives
+
+- **Trajectory**: The atomic unit of learning - a complete record of an agent's task-solving attempt (task, steps, outcome)
+- **Environment**: Execution context where tasks are solved (ARC grids, SWE codebases)
+- **Agent**: Actors that produce trajectories by interacting with environments
+
+### Pillars
+
+1. **Memory Systems**: What to remember
+   - **Experience Memory**: Task-level retrieval of similar past experiences
+   - **Concept Library**: Reusable code patterns and compositions
+   - **Strategy Bank**: Abstract reasoning patterns ("For symmetry tasks, reflect then duplicate")
+
+2. **Search Methods**: How to solve
+   - **Task Router**: Decides which search strategy to use
+   - **Direct Solver**: Single-shot with memory retrieval
+   - **Mind Evolution**: Population-based evolutionary search (for ARC)
+   - **MCTS**: Monte Carlo Tree Search (for SWE)
+
+3. **Learning Engine**: How to improve
+   - **Trajectory Analyzer**: Credit assignment and error pattern detection
+   - **Abstraction Extractor**: Pattern extraction (Stitch-style compression)
+   - **Hindsight Learner**: Training data preparation for fine-tuning
+
+## Quick Start
+
+### Python
+
+```python
+from cognitive_core.environments import ARCEnvironment, create_environment
+from cognitive_core.core.types import Task, VerificationSpec
+
+# Create an ARC task
+task = Task(
+    id="example-task",
+    domain="arc",
+    description="Transform the input grid following the pattern",
+    context={
+        "grids": {
+            "train": [
+                ([[0, 1], [1, 0]], [[1, 0], [0, 1]]),  # Input/output pair
+            ],
+            "test": [
+                ([[0, 0], [1, 1]], [[1, 1], [0, 0]]),
+            ],
+        }
+    },
+    verification=VerificationSpec(method="exact_match"),
+)
+
+# Create environment (auto-selects based on domain)
+env = create_environment(task)
+
+# Reset and get initial observation
+obs = env.reset(task)
+print(obs)  # Shows training examples and test inputs
+
+# Verify a solution
+outcome = env.verify([[1, 1], [0, 0]])
+print(f"Success: {outcome.success}, Score: {outcome.partial_score}")
+```
+
+### TypeScript
+
+```typescript
+import { CognitiveCore } from "cognitive-core";
+
+const core = new CognitiveCore();
+await core.start();
+
+// Create an environment
+const env = await core.env.create("arc");
+
+// Reset with a task
+const { observation } = await core.env.reset(env.envId, {
+  id: "task-1",
+  domain: "arc",
+  description: "Transform the input grid",
+  context: { grids: { train: [...], test: [...] } },
+});
+
+// Verify a solution
+const outcome = await core.env.verify(env.envId, [[1, 1], [0, 0]]);
+console.log(`Success: ${outcome.success}`);
+
+await core.stop();
+```
+
+## Project Structure
+
+```
+meta-learning-engine/
+├── src/
+│   └── cognitive_core/         # Python package source
+│       ├── core/               # Core types (Task, Trajectory, Outcome)
+│       ├── protocols/          # Protocol definitions (interfaces)
+│       ├── environments/       # Task execution environments
+│       │   ├── arc/           # ARC-AGI environment
+│       │   ├── swe.py         # SWE environment (Docker)
+│       │   └── base.py        # PassthroughEnvironment
+│       ├── memory/            # Memory systems
+│       ├── search/            # Search methods
+│       ├── learning/          # Learning pipeline
+│       ├── embeddings/        # Embedding models (BGE)
+│       ├── vector/            # Vector stores (ChromaDB)
+│       ├── llm/               # LLM adapters
+│       └── cli.py             # CLI for subprocess communication
+├── ts/                         # TypeScript package
+│   ├── src/
+│   │   ├── index.ts           # Main exports
+│   │   ├── client.ts          # Python subprocess manager
+│   │   └── types.ts           # TypeScript interfaces
+│   ├── package.json
+│   └── README.md
+├── tests/                      # Python tests
+├── pyproject.toml              # Python package config
+└── README.md
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=cognitive_core
+
+# Type checking
+mypy src/cognitive_core
+
+# Linting
+ruff check src/cognitive_core
+```
+
+### TypeScript Development
+
+```bash
+cd ts
+npm install
+npm run build
+npm test
+```
+
+## Requirements
+
+**Python:**
+- Python 3.10+
+- NumPy >= 1.24
+- Pydantic >= 2.0
+
+**TypeScript:**
+- Node.js 18+
+- Python cognitive-core package installed
+
+Optional dependencies for specific features:
+- `arckit` for ARC tasks
+- `docker` for SWE environment
+- `chromadb` for vector storage
+- `sentence-transformers` for embeddings
+- `litellm` for LLM integration
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## References
+
+Cognitive Core draws inspiration from several research papers:
+- [ArcMemo](https://arxiv.org/abs/2410.13566) - Concept-level memory for ARC
+- [ReMem](https://arxiv.org/abs/2410.15908) - Experience memory with refinement
+- [Stitch](https://arxiv.org/abs/2211.16605) - Library learning via compression
+- [LILO](https://arxiv.org/abs/2310.19791) - Language-guided library learning
+- [Mind Evolution](https://arxiv.org/abs/2501.09891) - Evolutionary search for reasoning
+- [SWE-Search](https://arxiv.org/abs/2410.20285) - MCTS for software engineering
