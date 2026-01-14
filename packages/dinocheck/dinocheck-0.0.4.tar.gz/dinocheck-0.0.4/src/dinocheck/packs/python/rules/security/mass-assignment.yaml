@@ -1,0 +1,59 @@
+id: python/mass-assignment
+name: Mass Assignment Vulnerability
+level: blocker
+category: security
+description: |
+  Detects patterns where HTTP user input is spread into object creation.
+
+  CRITICAL - DO NOT REPORT if:
+  - Data comes from os.environ, config files, or constructor parameters - NOT user input
+  - Code is internal infrastructure (CLI tools, background jobs, not web endpoints)
+  - **kwargs in __init__ is standard Python pattern, NOT mass assignment
+
+  ONLY REPORT if: request.data, request.POST, request.GET, or HTTP body
+  is spread (**) directly into Django/ORM model.create() or .update().
+
+triggers:
+  file_patterns:
+    - "**/*.py"
+  code_patterns:
+    - "\\*\\*request\\.(data|json|POST|GET)"
+    - "\\*\\*data"
+    - "\\*\\*kwargs"
+    - "\\.create\\(\\*\\*"
+    - "\\.update\\(\\*\\*"
+    - "setattr.*request"
+
+checklist:
+  - Is user input spread directly into model creation?
+  - Could an attacker set is_admin, is_staff, or similar?
+  - Are there sensitive fields that shouldn't be user-settable?
+  - Is there a whitelist of allowed fields?
+  - Could nested data modify related objects?
+  - Does the data come from environment variables, config files, or internal sources? If yes, it is SAFE
+  - Is this internal/trusted code (not a web endpoint)? Internal config assignment is SAFE
+
+fix: |
+  Use explicit field assignment or whitelists. Use serializers
+  with explicit fields. Never pass request data directly to
+  model methods. Validate and extract only expected fields.
+
+tags:
+  - security
+  - mass-assignment
+  - injection
+
+examples:
+  bad: |
+    def create_user(request):
+        user = User.objects.create(**request.data)
+        # Attacker can send {"is_admin": true}!
+        return user
+  good: |
+    def create_user(request):
+        user = User.objects.create(
+            email=request.data['email'],
+            name=request.data['name'],
+            # is_admin NOT settable from request
+        )
+        return user
