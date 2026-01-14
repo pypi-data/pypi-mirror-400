@@ -1,0 +1,374 @@
+import gc
+import os
+import h5py
+import tqdm
+import torch
+import argparse
+import traceback
+import torchvision
+import pandas as pd
+import multiprocessing as mp
+
+from pathlib import Path
+from contextlib import nullcontext
+
+import slide2vec.distributed as distributed
+
+from slide2vec.utils import fix_random_seeds
+from slide2vec.utils.config import get_cfg_from_file, setup_distributed
+from slide2vec.models import ModelFactory
+from slide2vec.data import TileDataset, RegionUnfolding
+from slide2vec.hs2p.hs2p.wsi import SamplingParameters
+
+torchvision.disable_beta_transforms_warning()
+
+
+def get_args_parser(add_help: bool = True):
+    parser = argparse.ArgumentParser("slide2vec", add_help=add_help)
+    parser.add_argument(
+        "--config-file", default="", metavar="FILE", help="path to config file"
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="output directory to save logs and checkpoints",
+    )
+    parser.add_argument(
+        "--run-on-cpu", action="store_true", help="run inference on cpu"
+    )
+    parser.add_argument(
+        "opts",
+        help="Modify config options at the end of the command using \"path.key=value\".",
+        default=None,
+        nargs=argparse.REMAINDER,
+    )
+    return parser
+
+
+def create_transforms(cfg, model):
+    if cfg.model.level in ["tile", "slide"]:
+        return model.get_transforms()
+    elif cfg.model.level == "region":
+        return torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                RegionUnfolding(model.tile_size),
+                model.get_transforms(),
+            ]
+        )
+    else:
+        raise ValueError(f"Unknown model level: {cfg.model.level}")
+
+
+def create_dataset(
+    wsi_path,
+    mask_path,
+    coordinates_dir,
+    target_spacing,
+    tolerance,
+    backend,
+    segment_params,
+    sampling_params,
+    filter_params,
+    transforms,
+    restrict_to_tissue: bool,
+):
+    return TileDataset(
+        wsi_path=wsi_path,
+        mask_path=mask_path,
+        coordinates_dir=coordinates_dir,
+        target_spacing=target_spacing,
+        tolerance=tolerance,
+        backend=backend,
+        segment_params=segment_params,
+        sampling_params=sampling_params,
+        filter_params=filter_params,
+        transforms=transforms,
+        restrict_to_tissue=restrict_to_tissue,
+    )
+
+
+def run_inference(dataloader, model, device, autocast_context, unit, batch_size, feature_path, feature_dim, dtype, run_on_cpu: False):
+    device_name = f"GPU {distributed.get_global_rank()}" if not run_on_cpu else "CPU"
+    with h5py.File(feature_path, "w") as f:
+        features = f.create_dataset("features", shape=(0, *feature_dim), maxshape=(None, *feature_dim), dtype=dtype, chunks=(batch_size, *feature_dim))
+        indices = f.create_dataset("indices", shape=(0,), maxshape=(None,), dtype='int64', chunks=(batch_size,))
+        with torch.inference_mode(), autocast_context:
+            for batch in tqdm.tqdm(
+                dataloader,
+                desc=f"Inference on {device_name}",
+                unit=unit,
+                unit_scale=batch_size,
+                leave=False,
+                position=2 + distributed.get_global_rank(),
+            ):
+                idx, image = batch
+                image = image.to(device, non_blocking=True)
+                feature = model(image)["embedding"].cpu().numpy()
+                features.resize(features.shape[0] + feature.shape[0], axis=0)
+                features[-feature.shape[0]:] = feature
+                indices.resize(indices.shape[0] + idx.shape[0], axis=0)
+                indices[-idx.shape[0]:] = idx.cpu().numpy()
+
+                # cleanup
+                del image, feature
+
+    # cleanup
+    if not run_on_cpu:
+        torch.cuda.empty_cache()
+    gc.collect()
+
+
+def load_sort_and_deduplicate_features(tmp_dir, name, expected_len=None):
+    features_list, indices_list = [], []
+    for rank in range(distributed.get_global_size()):
+        fp = tmp_dir / f"{name}-rank_{rank}.h5"
+        with h5py.File(fp, "r") as f:
+            features_list.append(torch.from_numpy(f["features"][:]))
+            indices_list.append(torch.from_numpy(f["indices"][:]))
+        os.remove(fp)
+    features = torch.cat(features_list, dim=0)
+    indices = torch.cat(indices_list, dim=0)
+    order = torch.argsort(indices)
+    indices = indices[order]
+    features = features[order]
+    # deduplicate
+    keep = torch.ones_like(indices, dtype=torch.bool)
+    keep[1:] = indices[1:] != indices[:-1]
+    indices_unique = indices[keep]
+    features_unique = features[keep]
+    if expected_len is not None:
+        assert len(indices_unique) == expected_len, f"Got {len(indices_unique)} items, expected {expected_len}"
+        assert torch.unique(indices_unique).numel() == len(indices_unique), "Indices are not unique after sorting"
+    return features_unique
+
+
+def main(args):
+    # setup configuration
+    run_on_cpu = args.run_on_cpu
+    cfg = get_cfg_from_file(args.config_file)
+    output_dir = Path(cfg.output_dir, args.output_dir)
+    cfg.output_dir = str(output_dir)
+
+    if not run_on_cpu:
+        setup_distributed()
+
+    if cfg.tiling.read_coordinates_from:
+        coordinates_dir = Path(cfg.tiling.read_coordinates_from)
+    else:
+        coordinates_dir = Path(cfg.output_dir, "coordinates")
+    fix_random_seeds(cfg.seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    unit = "tile" if cfg.model.level != "region" else "region"
+
+    num_workers = min(mp.cpu_count(), cfg.speed.num_workers_embedding)
+    if "SLURM_JOB_CPUS_PER_NODE" in os.environ:
+        num_workers = min(num_workers, int(os.environ["SLURM_JOB_CPUS_PER_NODE"]))
+
+    process_list = Path(cfg.output_dir, "process_list.csv")
+    assert (
+        process_list.is_file()
+    ), "Process list CSV not found. Ensure tiling has been run."
+    process_df = pd.read_csv(process_list)
+    cols = ["wsi_name", "wsi_path", "tiling_status", "error", "traceback"]
+    if "feature_status" not in process_df.columns:
+        process_df["feature_status"] = ["tbp"] * len(process_df)
+    if "mask_path" not in process_df.columns:
+        process_df["mask_path"] = [None] * len(process_df)
+    cols = ["wsi_name", "wsi_path", "mask_path", "tiling_status", "feature_status", "error", "traceback"]
+    process_df = process_df[cols]
+
+    skip_feature_extraction = process_df["feature_status"].str.contains("success").all()
+
+    if skip_feature_extraction:
+        if distributed.is_main_process():
+            print("=+=" * 10)
+            print(f"All slides have been embedded. Skipping {unit}-level feature extraction step.")
+            print("=+=" * 10)
+        if distributed.is_enabled():
+            torch.distributed.destroy_process_group()
+
+    else:
+        model = ModelFactory(cfg.model).get_model()
+        if distributed.is_main_process():
+            print(f"Starting {unit}-level feature extraction...")
+        if not run_on_cpu:
+            torch.distributed.barrier()
+
+        pixel_mapping = {k: v for e in cfg.tiling.sampling_params.pixel_mapping for k, v in e.items()}
+        tissue_percentage = {k: v for e in cfg.tiling.sampling_params.tissue_percentage for k, v in e.items()}
+        if "tissue" not in tissue_percentage:
+            tissue_percentage["tissue"] = cfg.tiling.params.min_tissue_percentage
+        if cfg.tiling.sampling_params.color_mapping is not None:
+            color_mapping = {k: v for e in cfg.tiling.sampling_params.color_mapping for k, v in e.items()}
+        else:
+            color_mapping = None
+
+        sampling_params = SamplingParameters(
+            pixel_mapping=pixel_mapping,
+            color_mapping=color_mapping,
+            tissue_percentage=tissue_percentage,
+        )
+
+        # select slides that were successfully tiled but not yet processed for feature extraction
+        tiled_df = process_df[process_df.tiling_status == "success"]
+        mask = tiled_df["feature_status"] != "success"
+        process_stack = tiled_df[mask]
+        total = len(process_stack)
+
+        wsi_paths_to_process = [Path(x) for x in process_stack.wsi_path.values.tolist()]
+        mask_paths_to_process = [Path(x) if x is not None and not pd.isna(x) else None  for x in process_stack.mask_path.values.tolist()]
+        combined_paths = zip(wsi_paths_to_process, mask_paths_to_process)
+
+        features_dir = Path(cfg.output_dir, "features")
+        if distributed.is_main_process():
+            features_dir.mkdir(exist_ok=True, parents=True)
+
+        tmp_dir = Path("/tmp")
+        if distributed.is_main_process():
+            tmp_dir.mkdir(exist_ok=True, parents=True)
+
+        autocast_context = (
+            torch.autocast(device_type="cuda", dtype=torch.float16)
+            if (cfg.speed.fp16 and not run_on_cpu)
+            else nullcontext()
+        )
+        feature_extraction_updates = {}
+
+        transforms = create_transforms(cfg, model)
+        print(f"transforms: {transforms}")
+
+        for wsi_fp, mask_fp in tqdm.tqdm(
+            combined_paths,
+            desc="Inference",
+            unit="slide",
+            total=total,
+            leave=True,
+            disable=not distributed.is_main_process(),
+            position=1,
+        ):
+            try:
+                dataset = create_dataset(
+                    wsi_path=wsi_fp,
+                    mask_path=mask_fp,
+                    coordinates_dir=coordinates_dir,
+                    target_spacing=cfg.tiling.params.spacing,
+                    tolerance=cfg.tiling.params.tolerance,
+                    backend=cfg.tiling.backend,
+                    segment_params=cfg.tiling.seg_params,
+                    sampling_params=sampling_params,
+                    filter_params=cfg.tiling.filter_params,
+                    transforms=transforms,
+                    restrict_to_tissue=cfg.model.restrict_to_tissue,
+                )
+                if distributed.is_enabled_and_multiple_gpus():
+                    sampler = torch.utils.data.DistributedSampler(
+                        dataset,
+                        shuffle=False,
+                        drop_last=False,
+                    )
+                else:
+                    sampler = None
+                dataloader = torch.utils.data.DataLoader(
+                    dataset,
+                    batch_size=cfg.model.batch_size,
+                    sampler=sampler,
+                    num_workers=num_workers,
+                    pin_memory=True,
+                )
+
+                name = wsi_fp.stem.replace(" ", "_")
+                feature_path = features_dir / f"{name}.pt"
+                if cfg.model.save_tile_embeddings:
+                    feature_path = features_dir / f"{name}-tiles.pt"
+                tmp_feature_path = tmp_dir / f"{name}-rank_{distributed.get_global_rank()}.h5"
+
+                # get feature dimension and dtype using a dry run
+                with torch.inference_mode(), autocast_context:
+                    sample_batch = next(iter(dataloader))
+                    sample_image = sample_batch[1].to(model.device)
+                    sample_feature = model(sample_image)["embedding"].cpu().numpy()
+                    feature_dim = sample_feature.shape[1:]
+                    dtype = sample_feature.dtype
+
+                run_inference(
+                    dataloader,
+                    model,
+                    model.device,
+                    autocast_context,
+                    unit,
+                    cfg.model.batch_size,
+                    tmp_feature_path,
+                    feature_dim,
+                    dtype,
+                    run_on_cpu,
+                )
+
+                if not run_on_cpu:
+                    torch.distributed.barrier()
+
+                if distributed.is_main_process():
+                    wsi_feature = load_sort_and_deduplicate_features(tmp_dir, name, expected_len=len(dataset))
+                    torch.save(wsi_feature, feature_path)
+
+                    # cleanup
+                    del wsi_feature
+                    if not run_on_cpu:
+                        torch.cuda.empty_cache()
+                    gc.collect()
+
+                if not run_on_cpu:
+                    torch.distributed.barrier()
+
+                feature_extraction_updates[str(wsi_fp)] = {"status": "success"}
+
+            except Exception as e:
+                feature_extraction_updates[str(wsi_fp)] = {
+                    "status": "failed",
+                    "error": str(e),
+                    "traceback": str(traceback.format_exc()),
+                }
+
+            # update process_df
+            if distributed.is_main_process():
+                status_info = feature_extraction_updates[str(wsi_fp)]
+                process_df.loc[
+                    process_df["wsi_path"] == str(wsi_fp), "feature_status"
+                ] = status_info["status"]
+                if "error" in status_info:
+                    process_df.loc[
+                        process_df["wsi_path"] == str(wsi_fp), "error"
+                    ] = status_info["error"]
+                    process_df.loc[
+                        process_df["wsi_path"] == str(wsi_fp), "traceback"
+                    ] = status_info["traceback"]
+                process_df.to_csv(process_list, index=False)
+
+        if distributed.is_enabled_and_multiple_gpus():
+            torch.distributed.barrier()
+
+        if distributed.is_main_process():
+            # summary logging
+            slides_with_tiles = len(tiled_df)
+            total_slides = len(process_df)
+            failed_feature_extraction = process_df[
+                process_df["feature_status"] == "failed"
+            ]
+            print("=+=" * 10)
+            print(f"Total number of slides with {unit}s: {slides_with_tiles}/{total_slides}")
+            print(f"Failed {unit}-level feature extraction: {len(failed_feature_extraction)}/{slides_with_tiles}")
+            print(
+                f"Completed {unit}-level feature extraction: {slides_with_tiles - len(failed_feature_extraction)}/{slides_with_tiles}"
+            )
+            print("=+=" * 10)
+
+        if distributed.is_enabled():
+            torch.distributed.destroy_process_group()
+
+
+if __name__ == "__main__":
+    args = get_args_parser(add_help=True).parse_args()
+    main(args)
