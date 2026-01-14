@@ -1,0 +1,323 @@
+Metadata-Version: 2.4
+Name: reddit-comment-harvester
+Version: 0.1.0
+Summary: Extract Reddit threads and comment trees for research and analysis
+Author-email: Wiley <wiley@example.com>
+License: MIT
+Project-URL: Homepage, https://github.com/wlyastn/reddit-comment-harvester
+Project-URL: Documentation, https://github.com/wlyastn/reddit-comment-harvester/blob/main/README.md
+Project-URL: Repository, https://github.com/wlyastn/reddit-comment-harvester
+Project-URL: Issues, https://github.com/wlyastn/reddit-comment-harvester/issues
+Keywords: reddit,comments,research,data-analysis,scraper
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Intended Audience :: Science/Research
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Scientific/Engineering
+Classifier: License :: OSI Approved :: MIT License
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: requests>=2.31.0
+Dynamic: license-file
+
+# Reddit Comment Harvester
+
+Small Python utility for pulling Reddit threads (posts + comment trees) into structured Python objects or flat CSV for analysis.
+
+Built for research workflows where you already have thread URLs and want repeatable exports of post metadata (title, subreddit, score) and comment data (authors, bodies, scores).
+
+**Quick disclaimer:** You're responsible for complying with Reddit's Terms of Service and rate limits. This tool adds optional randomized delays to reduce request bursts.
+
+## Why This Exists
+
+Most Reddit data extraction requires API keys (PRAW), which limits access. This tool fetches public thread HTML and parses the comment tree directly, giving you:
+
+- No API registration required
+- Full comment threads (titles, authors, scores)
+- Flat CSV export for immediate analysis
+- Optional randomized delays to be a good citizen
+
+What it *doesn't* do: vote, post, access private communities, or handle deleted/removed comments (they're skipped).
+
+## Table of Contents
+- [About](#about)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Example Output](#example-output)
+- [API Reference](#api-reference)
+- [CSV Format](#csv-format)
+- [Rate Limiting & Responsible Use](#rate-limiting--responsible-use)
+- [Contributing](#contributing)
+- [License](#license)
+
+## About
+
+Reddit Comment Harvester is a lightweight Python package for research workflows involving Reddit discussions. It extracts thread and comment data using HTML parsing, without requiring API authentication.
+
+**Data captured:**
+- Thread: title, author, score, subreddit, post date, comment count
+- Comments: author, body text, score, depth in tree, comment date
+
+**Limitations:** Deleted/removed comments are not captured. Comment nesting depth is preserved but trees are flattened in CSV export.
+
+## Getting Started
+
+### Installation
+
+```bash
+pip install reddit-comment-harvester
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/wlyastn/reddit-comment-harvester.git
+cd reddit-comment-harvester
+pip install -e .
+```
+
+### Quick Start
+
+```python
+from reddit_url_harvester import RedditScraper
+
+scraper = RedditScraper()
+thread = scraper.scrape("https://reddit.com/r/python/comments/abc123/")
+
+print(f"Title: {thread.title}")
+print(f"Subreddit: {thread.subreddit}")
+print(f"Score: {thread.score}")
+print(f"Comments: {len(thread.comments)}")
+```
+
+## Usage
+
+### Extract a Single Thread
+
+```python
+from reddit_url_harvester import RedditScraper
+
+scraper = RedditScraper()
+thread = scraper.scrape("https://reddit.com/r/python/comments/abc123/")
+```
+
+```python
+from reddit_url_harvester import RedditScraper
+
+scraper = RedditScraper()
+
+urls = [
+    "https://reddit.com/r/python/comments/abc123/",
+    "https://reddit.com/r/python/comments/def456/",
+    "https://reddit.com/r/python/comments/ghi789/",
+]
+
+threads = scraper.scrape_batch(urls)
+print(f"Scraped {len(threads)} threads")
+```
+
+### Process URLs from CSV
+
+```python
+from reddit_url_harvester import RedditScraper
+
+scraper = RedditScraper()
+
+results = scraper.scrape_csv(
+    input_file="urls.csv",
+    output_file="results.csv",
+    url_column="URL"
+)
+
+print(f"Saved {len(results)} results to results.csv")
+```
+
+## Example Output
+
+### Thread Object
+
+After scraping a thread, you get a `Thread` object:
+
+```python
+thread.title
+# "Why Python is the best language for beginners"
+
+thread.author
+# "john_coder"
+
+thread.subreddit
+# "python"
+
+thread.score
+# 2847
+
+thread.num_comments
+# 156
+
+thread.comments[0]
+# Comment(
+#   author='jane_dev',
+#   body='Great explanation! Especially liked the...',
+#   score=245,
+#   depth=0
+# )
+```
+
+### CSV Export
+
+When exported to CSV, each row represents one comment (the post becomes a metadata header):
+
+```csv
+url,title,subreddit,post_id,author,score,comment_author,comment_body,comment_score,comment_depth
+https://reddit.com/r/python/comments/abc123/,Why Python is best...,python,abc123,john_coder,2847,jane_dev,"Great explanation! Especially liked...",245,0
+https://reddit.com/r/python/comments/abc123/,Why Python is best...,python,abc123,john_coder,2847,mike_learn,"I disagree with point 2 because...",89,1
+```
+
+## Configuration
+
+Optional parameters for scraper behavior:
+
+```python
+scraper = RedditScraper(
+    timeout=60.0,           # Request timeout in seconds (default: 60.0)
+    delay=True,             # Add random delays between requests (default: True)
+    proxies=None            # Optional proxy config (default: None)
+)
+```
+
+**timeout:** How long to wait for a response (seconds). Increase if you get timeouts on large threads.
+
+**delay:** Adds 2–6 second random waits between requests. Recommended to keep enabled.
+
+**proxies:** Use if you need to route requests through a proxy. Format: `{"https": "http://proxy:8080"}`
+
+Update configuration on an existing scraper:
+
+```python
+scraper.set_timeout(45.0)
+scraper.set_delay(True)
+scraper.set_proxy({"https": "http://proxy.example.com:8080"})
+```
+
+## API Reference
+
+### RedditScraper Class
+
+#### scrape(url: str) -> Thread
+
+Scrape a single Reddit thread or comment.
+
+```python
+thread = scraper.scrape("https://reddit.com/r/python/comments/abc123/")
+```
+
+#### scrape_batch(urls: List[str], skip_errors: bool = True) -> List[Thread]
+
+Scrape multiple URLs and return results.
+
+```python
+threads = scraper.scrape_batch(urls, skip_errors=True)
+```
+
+#### scrape_csv(input_file: str, output_file: Optional[str] = None, url_column: str = "URL", skip_errors: bool = True) -> List[dict]
+
+Scrape URLs from a CSV file and optionally save results.
+
+```python
+results = scraper.scrape_csv("urls.csv", output_file="results.csv")
+```
+
+### Data Models
+
+#### Thread
+
+Represents a Reddit thread with the following attributes:
+
+```python
+thread.title          # str - Thread title
+thread.subreddit      # str - Subreddit name
+thread.author         # str - Post author username
+thread.url            # str - Full Reddit URL
+thread.post_id        # str - Reddit post ID
+thread.score          # int - Post upvotes/score
+thread.comments       # List[Comment] - List of comments
+```
+
+#### Comment
+
+Represents a comment with the following attributes:
+
+```python
+comment.author        # str - Comment author username
+comment.body          # str - Comment text/content
+comment.score         # int - Comment upvotes/score
+comment.timestamp     # str - Comment timestamp
+```
+
+## CSV Format
+
+### Input Format
+
+Pass a CSV file with a URL column:
+
+```csv
+URL
+https://reddit.com/r/python/comments/abc123/
+https://reddit.com/r/python/comments/def456/
+```
+
+### Output Format
+
+Results are one comment per row (post metadata repeats):
+
+```csv
+url,title,subreddit,author,score,comment_author,comment_body,comment_score
+https://reddit.com/r/python/comments/abc123/,Title,python,poster,250,commenter,"Nice post",85
+https://reddit.com/r/python/comments/abc123/,Title,python,poster,250,other_user,"Disagree",12
+```
+
+## Rate Limiting & Responsible Use
+
+**Important:** You must comply with Reddit's Terms of Service and rate limits.
+
+Best practices:
+- Keep `delay=True` (default). It adds 2–6 second waits to reduce request bursts.
+- Don't scrape the same content repeatedly. Cache results.
+- Stop immediately if you see 429 (Too Many Requests) errors.
+- Don't use this for spam, manipulation, or violating Reddit's policies.
+
+If you get rate-limited:
+
+```python
+scraper.set_timeout(90.0)  # Increase timeout
+scraper.set_delay(True)     # Ensure delays are on
+# Then try again after 10+ minutes
+```
+
+## Contributing
+
+Contributions welcome
+
+## License
+
+MIT License, see [LICENSE](LICENSE) for details.
+
+## Disclaimer & Responsibility
+
+This tool is provided as-is for research and analysis. **You are responsible for:**
+
+- Complying with Reddit's Terms of Service and any legal restrictions in your jurisdiction
+- Using appropriate rate limits and delays
+- Respecting Reddit's infrastructure and user privacy
+- Obtaining consent if needed for your intended use
+
+The maintainers assume no liability for misuse or violations. Use responsibly.
