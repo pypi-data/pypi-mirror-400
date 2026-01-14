@@ -1,0 +1,93 @@
+# ai-minecraft-image
+
+The `ai-minecraft-image` package provides an automated way to generate Minecraft skins from images. It's designed to simplify the process and offers a convenient programmatic interface to the capabilities showcased on https://supermaker.ai/image/blog/how-to_turn_your_image_into_minecraft_skin/.
+
+## Installation
+
+Install the package using pip:
+bash
+pip install ai-minecraft-image
+
+## Basic Usage
+
+Here are a few examples demonstrating how to use the `ai-minecraft-image` package:
+
+**1. Creating a Skin from a Local Image File:**
+python
+from ai_minecraft_image import SkinGenerator
+
+generator = SkinGenerator()
+try:
+    generator.create_skin_from_image("path/to/your/image.jpg", "output_skin.png")
+    print("Skin generated successfully!")
+except FileNotFoundError:
+    print("Error: Image file not found.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+**2. Creating a Skin from an Image URL:**
+python
+from ai_minecraft_image import SkinGenerator
+
+generator = SkinGenerator()
+image_url = "https://example.com/your_image.png"
+output_file = "output_skin_from_url.png"
+
+try:
+    generator.create_skin_from_url(image_url, output_file)
+    print(f"Skin generated successfully from URL! Saved as {output_file}")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+**3. Generating a Skin with Custom Options (e.g., scaling):**
+python
+from ai_minecraft_image import SkinGenerator
+
+generator = SkinGenerator()
+try:
+    generator.create_skin_from_image("path/to/your/image.jpg", "scaled_skin.png", scale_factor=2) # Scale the image up by a factor of 2
+    print("Scaled skin generated successfully!")
+except FileNotFoundError:
+    print("Error: Image file not found.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+**4. Handling Potential Errors:**
+python
+from ai_minecraft_image import SkinGenerator
+
+generator = SkinGenerator()
+
+try:
+    generator.create_skin_from_image("invalid/path/image.jpg", "output.png")
+except FileNotFoundError as e:
+    print(f"Error: File not found - {e}")
+except Exception as e:
+    print(f"An unexpected error occurred: {e}")
+
+**5. Generating a Greyscale Skin from a Colored Image:**python
+from ai_minecraft_image import SkinGenerator
+
+generator = SkinGenerator()
+
+try:
+    generator.create_skin_from_image("path/to/your/image.jpg", "greyscale_skin.png", greyscale=True)
+    print("Greyscale skin generated successfully!")
+except FileNotFoundError:
+    print("Error: Image file not found.")
+except Exception as e:
+    print(f"An error occurred: {e}")
+
+## Features
+
+*   **Image-to-Skin Conversion:** Converts standard images into Minecraft skin formats.
+*   **URL Support:**  Generates skins directly from image URLs.
+*   **Error Handling:** Provides robust error handling for common issues like file not found or invalid URLs.
+*   **Customizable Options:** Offers options for scaling, greyscale conversion, and other adjustments.
+*   **Simplified Interface:** Easy-to-use functions for quick skin generation.
+
+## License
+
+MIT License
+
+This project is a gateway to the ai-minecraft-image ecosystem. For advanced features and full capabilities, please visit: https://supermaker.ai/image/blog/how-to-turn-your-image-into-minecraft-skin/
