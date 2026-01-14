@@ -1,0 +1,73 @@
+# Orrin SDK v0.0.8
+The Orrrin SDK v0.x.x are the first revolutions of the Orrin SDK, and brings forth a simple Python decorator for developers creating small-scale apps to be deployed on the Orrin platform.
+
+Orrin SDK is the bridge behind backend action and UI manipulation.
+
+## Why Python/Node.js mix?
+Python is used for simplicity on the backend side of things and compatibility, and node.js is utilized for the frontend as it enables flexibility, and also compatibility.
+
+Orrin Web is also based in node.js, so sustaining that stack for the web platform just simply makes sense.
+
+## Orrin SDK actions
+The current version offers only one decorator: `action`.
+You call this on top of any given function that will be used in your front end code to perform an activity and manipulate the UI.
+
+Example:
+```python
+from sdk import OrrinSDK
+
+orrin_sdk = OrrinSDK(
+    developer_api_key='<your_developer_api_key>', # Required
+    app_name='A Test App', # Required
+    desc='A test app that I am building to test the Orrin platform!' # Required metadata (will be displayed on the Orrin Platform)
+)
+
+def lol():
+    return 'You can use non-action based function in action-based functions!'
+
+@orrin_sdk.action('test')
+def test(a):
+    return {'message': f'test done! {a}'}
+
+orrin_sdk.finalize() # Finalizes the configuration, and will perform all requests to create a app backend
+```
+
+**_(Don't forget `.finalize()` at the end of your code!)_**
+
+And now, in your UI, if you utilize this action (using a node.js based SDK) you can utilize the result from this function to determine how to manipulate your UI.
+
+_Note: After `.finalize()`, it can take up to 3 days for the backend configuration to be reviewed. After finalizing, your backend will be "PENDING". The other states are "DENIED" or "AUTHORIZED". Please refer to https://stellr-company.com/orrin/sdk for more information._
+
+## Extra metadata
+There will eventually be a elaborate developer platform for you to have direct access to all sorts of data regarding the apps you release and maintain.
+
+With that, you might need to have extra metadata for actions in your backend, especially if your backend grows. (remember to keep your apps small scale; Orrin is not a platform for entire Instagram clones.)
+
+You can add additional metadata about actions like so:
+```python
+from sdk import OrrinSDK
+
+orrin_sdk = OrrinSDK(
+    developer_api_key='<your_developer_api_key>',
+    app_name='A Test App',
+    desc='A test app that I am building to test the Orrin platform!'
+)
+
+def lol():
+    return 'You can use non-action based function in action-based functions!'
+
+@orrin_sdk.action('test', extra_metadata={'reason': 'This action is just a test. Do not use in production!'})
+def test(a):
+    return {'message': f'test done! {a}'}
+
+orrin_sdk.finalize()
+```
+
+There is no limit or requirement to what is in `extra_metadata` dictionary. Have whatever you need to ensure you understand that action.
+
+## One last thing!
+Ensure you **run your script**. By running your script, you effectively register all actions and store the entirety of your backend code.
+
+If you have no functions effectively decorated with `action`, your entire codebase will be _"dead"_ (have no applicable usability on the Orrin platform)
+
+_New versions of Orrin SDK are in the working_
