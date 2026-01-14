@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAAQEAAAEAIAAwAAAAFgAAACgAAAABAAAAAgAAAAEAIAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAPAAAAAA=="/>
+    <link rel="stylesheet" href="css/prism.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/font-awesome.css">
+    <style>
+        /* Prevent the main page from scrolling */
+    html, body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden; 
+    }
+    /* The main wrapper for your app */
+    #app {
+        display: flex;
+        flex-direction: column;
+        height: 100vh; /* Full viewport height */
+    }
+    /* The scrollable area */
+    .notebook-area {
+        flex-grow: 1;      /* Take up all remaining space */
+        overflow-y: auto;  /* Scroll only this div */
+        padding-top: 1.5rem;
+    }
+    </style>
+  </head>
+  <body class="has-navbar-fixed-top">
+
+    <div id="app"></div>
+    
+    <script type="text/x-template" id="app-template">
+    <nav class="navbar is-dark is-fixed-top" role="navigation" aria-label="main navigation">
+        <div id="the-navbar-menu" class="navbar-menu">
+            <div class="navbar-start">
+                <div class="navbar-item">
+                    <div class="buttons">
+                        <!-- Locking -->
+                        <button v-if="isLocked" class="button is-warning" title="Unlock Notebook" @click="lockNotebook(false)">
+                            <span class="icon"><i class="fa fa-lock"></i></span>
+                        </button>
+                        <button v-else class="button is-light" title="Lock Notebook" @click="lockNotebook(true)">
+                            <span class="icon"><i class="fa fa-unlock"></i></span>
+                        </button>
+                        <!-- Reload notebook -->
+                        <button v-if="!running && notebook"
+                            @click="reloadNotebook"
+                            class="button is-light" title="Reload Notebook">
+                            <span class="icon"><i class="fa fa-refresh"></i></span>
+                            <span>Refresh</span>
+                        </button>
+                        <!-- Interrupt execution -->
+                        <button v-if="running && notebook"
+                                @click="interruptKernel"
+                                class="button is-danger" title="Interrupt Execution">
+                            <span class="icon"><i class="fa fa-stop"></i></span>
+                            <span>Running...</span>
+                        </button>
+                        <!-- Status -->
+                        <button v-if="!running && notebook && lastRunIndex >= notebook.cells.length - 1"
+                                class="button is-light" title="All cells have been run">
+                            <span class="icon"><i class="fa fa-check-circle"></i></span>
+                            <span>Up to Date</span>
+                        </button>
+                        <!-- Running -->
+                        <!-- <button v-if="!running && notebook"
+                            :disabled="notebook.cells.length === 0 || isLocked"
+                            @click="regenerateAndRunAllCode" title="Regenerate all code from descriptions and run it all"
+                            class="button is-success">
+                            <span class="icon"><i class="fa fa-repeat"></i></span>
+                            <span class="icon"><i class="fa fa-play"></i></span>
+                        </button> -->
+                        <button v-if="!running && notebook"
+                            :disabled="notebook.cells.length === 0 || isLocked"
+                            @click="regenerateAllCode" title="Regenerate all code from descriptions"
+                            class="button is-success">
+                            <span class="icon"><i class="fa fa-repeat"></i></span>
+                            <span>Regenerate All</span>
+                        </button>
+                        <button v-if="!running && notebook"
+                            :disabled="notebook.cells.length === 0"
+                            @click="resetAndRunAllCells" title="Reset and run all cells"
+                            class="button is-primary">
+                            <span class="icon"><i class="fa fa-play"></i></span>
+                            <span>Reset and Run All</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="navbar-end">
+                <div class="navbar-item">
+                    <div class="buttons">
+                        <!-- <button id="btn-info" class="button is-danger" @click="genError">
+                            <span class="icon"><i class="fa fa-exclamation"></i></span>
+                        </button> -->
+                        <button id="btn-info" class="button is-light" @click="openInfo" title="About Plainbook">
+                            <span class="icon"><i class="fa fa-info"></i></span>
+                        </button>
+                        <button id="btn-settings" class="button is-light" @click="openSettings" title="Settings">
+                            <span class="icon"><i :class="geminiApiKey ? 'fa fa-cog' : 'fa fa-warning'"></i></span>
+                            <span>Settings</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div v-if="uiError" class="notification mb-0 mt-0 px-4 pl-2 pr-6 has-text-danger has-background-danger-light" 
+        style="width: 100%; border-radius: 0; align-items: center; justify-content: space-between;">
+        <span><strong>Error:</strong> {{ uiError }}</span>
+        <button class="delete" @click="closeUiError"></button>
+    </div>
+
+    <div class="section notebook-area">
+        <h1 class="title">
+            {{ notebook_name }}
+        </h1>
+        <div class="notebook-container px-2 py-2">
+            <div v-if="loading" class="has-text-centered py-6">
+                <button class="button is-loading is-ghost is-large">Loading</button>
+                <p class="has-text-grey">Fetching notebook data...</p>
+            </div>
+            <div v-else-if="error" class="notification is-danger is-light">
+                <button class="delete" @click="error = null"></button>
+                <strong>Error:</strong> {{ error }}
+            </div>
+            <div v-else="notebook">
+                <div v-if="!isLocked && notebook.cells.length === 0" class="py-1" style="display:flex; justify-content:center; gap:0.5rem;">
+                    <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(0, 'markdown')">Insert Comment</button>
+                    <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(0, 'code')">Insert Action</button>
+                </div>
+                <template v-for="(cell, index) in notebook.cells" :key="index">
+                    <!-- Insert zone before each cell -->
+                    <div v-if="!isLocked" class="cell-insert-zone">
+                        <div class="cell-insert-buttons">
+                            <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(index, 'markdown')">Insert Comment</button>
+                            <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(index, 'code')">Insert Action</button>
+                        </div>
+                    </div>
+
+                    <div class="notebook-cell box p-0 mb-2 is-clipped shadow-sm"
+                         @click="setActiveCell(index)"
+                         :style="{
+                            border: activeIndex === index ? '2px solid #1d4ed8' : '1px solid transparent',
+                            cursor: 'pointer'
+                         }">
+                        <markdown-cell v-if="cell.cell_type === 'markdown'" :source="cell.source" 
+                                       :is-active="activeIndex === index"
+                                       :start-edit-key="markdownEditKey[index]"
+                                       :index="index"
+                                       :isLocked="isLocked" 
+                                       @save="(content) => sendMarkdownToServer(content, index)"
+                                       @delete="deleteCell(index)"
+                                       @moveUp="moveCell(index, -1)"
+                                       @moveDown="moveCell(index, 1)" />
+
+                        <div v-if="cell.cell_type === 'code'">
+                            <div v-if="cell.metadata?.explanation" class="has-background-light p-0 border-bottom">
+                                <explanation-editor :source="cell.metadata.explanation" 
+                                                    :isActive="activeIndex === index" 
+                                                    :isLocked="isLocked" 
+                                                    :index="index" :asRead="asRead" 
+                                                    :lastRunIndex="lastRunIndex"
+                                                    :start-edit-key="explanationEditKey[index]"
+                                @save="(content) => sendExplanationToServer(content, index)" 
+                                @gencode="() => generateCode(index)" 
+                                @validate="() => validateCode(index)"
+                                @run="() => runCell(index)"
+                                @saveandrun="(content) => saveExplanationAndRun (content, index)"
+                                @delete="deleteCell(index)"
+                                @moveUp="moveCell(index, -1)"
+                                @moveDown="moveCell(index, 1)" />
+                            </div>
+                            <div v-if="cell.metadata?.validation && !cell.metadata?.validation.is_hidden">
+                                <validation-cell :validation="cell.metadata.validation" 
+                                                 :index="index"
+                                                 @dismiss_validation="dismissValidation" />
+                            </div>
+                            <code-cell  :source="cell.source" 
+                                        :execution-count="cell.execution_count" 
+                                        :is-active="activeIndex === index"
+                                        :is-locked="isLocked"
+                                        @save="(content) => sendCodeToServer(content, index)" />
+                            
+                            <div v-if="cell.outputs?.length" class="p-2 border-top has-background-white">
+                                <output-renderer v-for="(out, oIdx) in cell.outputs" :key="oIdx" :output="out" />
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- Insert zone after the last cell -->
+                <div v-if="!isLocked && !notebook.cells.length > 0" class="cell-insert-zone">
+                    <div class="cell-insert-buttons">
+                        <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(notebook.cells.length, 'markdown')">Insert Comment</button>
+                        <button class="button insert-cell is-info is-small py-0 px-3" @click.stop="insertCell(notebook.cells.length, 'code')">Insert Action</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" :class="{'is-active': showSettings}">
+        <div class="modal-background" @click="closeSettings"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Settings</p>
+                <button class="delete" aria-label="close" @click="closeSettings"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="field">
+                    <label class="label">Gemini API Key</label>
+                    <div class="control">
+                        <input class="input" type="text" v-model="geminiApiKey" placeholder="Enter your Gemini API key">
+                    </div>
+                    <p class="help">Your API key is stored locally in ~/.settings/plainbook and used for AI-powered features.</p>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" @click="closeSettings">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div class="modal" :class="{'is-active': showInfo}">
+        <div class="modal-background" @click="closeInfo"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Information</p>
+                <button class="delete" aria-label="close" @click="closeInfo"></button>
+            </header>
+            <section class="modal-card-body">
+                <h1 class="title">Plainbook</h1>
+                <div class="content">
+                    <p>Plainbook is an interactive notebook application for creating executable doocuments in 
+                        natural language.  A notebook consists of:</p>
+                    <ul>
+                        <li><strong>Action cells</strong> that contain an English explanation. The explanation is 
+                            used to generate Python code using an AI model. The generated code is then executed, 
+                            and the output is displayed below the cell.</li>
+                        <li><strong>Markdown cells</strong> for writing explanations, comments, and documentation in rich text format.</li>
+                    </ul>
+                    <p>If you lock a notebook, editing of cells and generation of code will be disabled 
+                        to prevent accidental changes.  However, you can still validate the code against
+                        its description, and you can still run the notebook.
+                        Unlock it to be able to edit again.</p>
+                    <p><a href="https://github.com/lucadealfaro/plainbook" target="_blank">Plainbook Home Page</a></p>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button" @click="closeInfo">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    </script>
+    
+    <footer class="footer">
+    </footer>
+  </body>
+  <!-- Loads the index-specific js for Vue -->
+  <script src="js/prism.min.js"></script>
+  <script src="js/prism-python.min.js"></script>
+  <script src="js/markdown-it.min.js"></script>
+  <script type="module" src="js/nb.js"></script>
+</html>
+
