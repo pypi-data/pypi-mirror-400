@@ -1,0 +1,209 @@
+"""Shared data model for Dataview Editor window.
+
+Read-only shim over SharedAddressData for nickname lookups.
+Manages CDV file discovery and the single dataview editor window.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from ..models.address_row import (
+    get_addr_key,
+    parse_address_display,
+)
+from ..models.address_row import (
+    normalize_address as _normalize_address,
+)
+from ..views.dataview_editor.cdv_file import get_dataview_folder, list_cdv_files
+
+if TYPE_CHECKING:
+    from .shared_data import SharedAddressData
+
+
+class SharedDataviewData:
+    """Shared data for the Dataview Editor window.
+
+    This class:
+    - Provides nickname lookup via SharedAddressData (read-only shim)
+    - Manages CDV file discovery in the project's DataView folder
+    - Tracks the single dataview editor window
+    - Observes SharedAddressData for automatic nickname refresh
+    """
+
+    def __init__(
+        self,
+        project_path: Path | None = None,
+        address_shared_data: SharedAddressData | None = None,
+    ):
+        """Initialize the shared dataview data.
+
+        Args:
+            project_path: Path to the CLICK project folder
+            address_shared_data: SharedAddressData for nickname lookups
+        """
+        self._project_path = project_path
+        self._address_shared_data: SharedAddressData | None = None
+        self._dataview_folder: Path | None = None
+
+        # Single window tracking (only one dataview editor at a time)
+        self._window = None
+
+        # Find dataview folder
+        if project_path:
+            self._dataview_folder = get_dataview_folder(project_path)
+
+        # Wire up to SharedAddressData if provided
+        if address_shared_data:
+            self.set_address_shared_data(address_shared_data)
+
+    @property
+    def dataview_folder(self) -> Path | None:
+        """Get the DataView folder path."""
+        return self._dataview_folder
+
+    @property
+    def address_shared_data(self) -> SharedAddressData | None:
+        """Get the SharedAddressData for nickname lookups."""
+        return self._address_shared_data
+
+    def _on_address_data_changed(self, sender=None) -> None:
+        """Observer callback when SharedAddressData changes.
+
+        Triggers nickname refresh in the dataview editor window.
+        """
+        if self._window is not None and hasattr(self._window, "refresh_nicknames_from_shared"):
+            try:
+                self._window.refresh_nicknames_from_shared()
+            except Exception:
+                pass
+
+    def set_address_shared_data(self, data: SharedAddressData | None) -> None:
+        """Set the SharedAddressData for nickname lookups.
+
+        Registers as observer to auto-refresh nicknames when address data changes.
+
+        Args:
+            data: SharedAddressData instance or None to disconnect
+        """
+        # Unregister from old shared data
+        if self._address_shared_data is not None:
+            self._address_shared_data.remove_observer(self._on_address_data_changed)
+
+        self._address_shared_data = data
+
+        # Register as observer on new shared data
+        if self._address_shared_data is not None:
+            self._address_shared_data.add_observer(self._on_address_data_changed)
+
+    def get_cdv_files(self) -> list[Path]:
+        """Get list of CDV files in the dataview folder.
+
+        Returns:
+            List of Path objects for each CDV file.
+        """
+        if not self._dataview_folder:
+            return []
+        return list_cdv_files(self._dataview_folder)
+
+    def lookup_nickname(self, address: str) -> tuple[str, str] | None:
+        """Look up nickname and comment for an address.
+
+        Args:
+            address: The address string (e.g., "X001", "DS100")
+
+        Returns:
+            Tuple of (nickname, comment) or None if not found.
+        """
+        if self._address_shared_data:
+            parsed = parse_address_display(address)
+            if not parsed:
+                return None
+
+            memory_type, mdb_address = parsed
+            addr_key = get_addr_key(memory_type, mdb_address)
+
+            if addr_key in self._address_shared_data.all_rows:
+                row = self._address_shared_data.all_rows[addr_key]
+                return (row.nickname, row.comment)
+
+        return None
+
+    def normalize_address(self, address: str) -> str | None:
+        """Normalize an address string to its canonical display form.
+
+        Parses the input address and returns the properly formatted display_address
+        (e.g., "x1" -> "X001", "xd0u" -> "XD0u").
+
+        Args:
+            address: The address string to normalize (e.g., "x1", "XD0U")
+
+        Returns:
+            The normalized display_address, or None if address is invalid.
+        """
+        return _normalize_address(address)
+
+    def register_window(self, window) -> None:
+        """Register the dataview editor window."""
+        self._window = window
+
+    def unregister_window(self, window) -> None:
+        """Unregister the dataview editor window."""
+        if self._window == window:
+            self._window = None
+
+    def close_window(self, prompt_save: bool = True) -> bool:
+        """Close the dataview editor window if open.
+
+        Args:
+            prompt_save: If True, prompt to save unsaved changes first.
+
+        Returns:
+            True if window was closed (or wasn't open), False if user cancelled.
+        """
+        if self._window is None:
+            return True
+
+        # Check for unsaved changes
+        if prompt_save and hasattr(self._window, "has_unsaved_changes"):
+            if self._window.has_unsaved_changes():
+                from tkinter import messagebox
+
+                result = messagebox.askyesnocancel(
+                    "Unsaved Changes",
+                    "You have unsaved changes in Dataview Editor. Save before closing?",
+                    parent=self._window,
+                )
+                if result is None:  # Cancel
+                    return False
+                if result:  # Yes - save
+                    if hasattr(self._window, "save_all"):
+                        self._window.save_all()
+
+        # Close window
+        try:
+            self._window.destroy()
+        except Exception:
+            pass
+
+        self._window = None
+        return True
+
+    def force_close_window(self) -> None:
+        """Force close the window without saving."""
+        if self._window is not None:
+            try:
+                self._window.destroy()
+            except Exception:
+                pass
+            self._window = None
+
+    # Backwards compatibility aliases
+    def close_all_windows(self, prompt_save: bool = True) -> bool:
+        """Close the dataview editor window. Alias for close_window()."""
+        return self.close_window(prompt_save)
+
+    def force_close_all_windows(self) -> None:
+        """Force close the window. Alias for force_close_window()."""
+        self.force_close_window()
