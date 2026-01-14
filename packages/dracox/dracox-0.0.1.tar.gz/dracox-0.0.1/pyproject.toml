@@ -1,0 +1,38 @@
+[build-system]
+requires = ["scikit-build-core", "nanobind"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "dracox"
+requires-python = ">=3.9"
+version = "0.0.1"
+authors = [{name = "Michael Dawson-Haggerty", email = "mikedh@kerfed.com"}]
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+test = ["pytest", "msgpack", "trimesh", "lxml", "networkx", "scipy"]
+
+[tool.scikit-build]
+minimum-version = "0.5"
+build-dir = "build/{wheel_tag}"
+cmake.minimum-version = "3.15"
+cmake.build-type = "Release"
+
+[tool.scikit-build.cmake.define]
+# We only need the decoder, not encoder or other features
+DRACO_POINT_CLOUD_COMPRESSION = "ON"
+DRACO_MESH_COMPRESSION = "ON"
+DRACO_STANDARD_EDGEBREAKER = "ON"
+DRACO_PREDICTIVE_EDGEBREAKER = "ON"
+DRACO_BACKWARDS_COMPATIBILITY = "ON"
+
+[tool.cibuildwheel]
+skip = ["*-musllinux*", "*-win32"]
+# Clean build artifacts that can cause auditwheel to fail with "too-recent versioned symbols"
+# Uses Python for cross-platform compatibility (rm/find don't exist on Windows)
+before-build = "python -c \"import shutil, glob, os; shutil.rmtree('{project}/build', ignore_errors=True); [os.remove(f) for f in glob.glob('{project}/**/*.so', recursive=True) + glob.glob('{project}/**/*.pyd', recursive=True)]\""
+test-command = "pytest {project}/tests"
+test-extras = ["test"]
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.14" }
