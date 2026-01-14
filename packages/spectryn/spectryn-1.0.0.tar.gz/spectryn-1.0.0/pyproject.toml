@@ -1,0 +1,413 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spectryn"
+version = "1.0.0"
+description = "A production-grade CLI tool for synchronizing markdown specifications with issue trackers"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Adrian Darian", email = "adrian.the.hactus@gmail.com"}
+]
+keywords = [
+    "jira",
+    "github",
+    "azure-devops",
+    "linear",
+    "markdown",
+    "sync",
+    "issue-tracker",
+    "agile",
+    "project-management",
+    "cli",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Software Development :: Bug Tracking",
+    "Typing :: Typed",
+]
+
+dependencies = [
+    "requests>=2.28.0",
+    "pyyaml>=6.0",  # YAML config file support
+    "tomli>=2.0; python_version < '3.11'",  # TOML support for Python <3.11
+]
+
+[project.optional-dependencies]
+async = [
+    "aiohttp>=3.8.0",  # Async HTTP client for parallel API calls
+]
+redis = [
+    "redis>=4.5.0",  # Redis client for distributed caching in high-concurrency environments
+]
+gitlab = [
+    "python-gitlab>=4.0.0",  # Official GitLab Python SDK (optional alternative to custom client)
+]
+bitbucket = [
+    "atlassian-python-api>=3.0.0",  # Atlassian Python API for Bitbucket Server support
+]
+telemetry = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "opentelemetry-exporter-prometheus>=0.41b0",
+]
+prometheus = [
+    "prometheus_client>=0.17.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.10",
+    "pytest-asyncio>=0.21.0",  # Async test support
+    "pytest-xdist>=3.5.0",  # Parallel test execution
+    "pytest-timeout>=2.3.0",  # Prevent test hangs
+    "pytest-benchmark>=4.0",  # Performance benchmarking
+    "hypothesis>=6.0",  # Property-based testing
+    "mutmut>=2.4",  # Mutation testing
+    "aiohttp>=3.8.0",  # For testing async functionality
+    "mypy>=1.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0",
+    "types-PyYAML>=6.0",  # Type stubs for PyYAML
+    "redis>=4.5.0",  # For testing Redis cache functionality
+    "types-redis>=4.5.0",  # Type stubs for redis
+]
+all = [
+    "aiohttp>=3.8.0",  # Async HTTP client for parallel API calls
+    "redis>=4.5.0",  # Redis client for distributed caching
+    "python-gitlab>=4.0.0",  # Official GitLab Python SDK
+    "atlassian-python-api>=3.0.0",  # Atlassian Python API for Bitbucket Server
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
+    "opentelemetry-exporter-prometheus>=0.41b0",
+    "prometheus_client>=0.17.0",
+]
+docs = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.0",
+]
+tui = [
+    "textual>=0.85.0",  # Modern TUI framework for interactive dashboard
+]
+
+[project.scripts]
+spectryn = "spectryn.cli:run"
+
+[project.entry-points."spectryn.plugins"]
+# Built-in plugins (example entry points for future plugins)
+# github = "spectryn.plugins.github:GithubTrackerPlugin"
+# linear = "spectryn.plugins.linear:LinearTrackerPlugin"
+
+[project.urls]
+Homepage = "https://github.com/adriandarian/spectryn"
+Documentation = "https://github.com/adriandarian/spectryn#readme"
+Repository = "https://github.com/adriandarian/spectryn.git"
+Issues = "https://github.com/adriandarian/spectryn/issues"
+Changelog = "https://github.com/adriandarian/spectryn/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+spectryn = ["py.typed"]
+
+# ============================================================================
+# Testing
+# ============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = [
+    "-ra",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    # DISABLED parallel execution to reduce memory consumption
+    # Use -n 2 explicitly when needed: pytest -n 2
+    # Timeout per test to prevent hangs (30 seconds)
+    "--timeout", "30",
+    # Skip slow/heavy tests by default - run explicitly with -m "slow" etc
+    "-m", "not (slow or stress or chaos or e2e or benchmark)",
+]
+markers = [
+    "slow: marks tests as slow (skipped by default, run with -m slow)",
+    "integration: marks tests as integration tests",
+    "benchmark: marks test as a performance benchmark (skipped by default)",
+    "stress: marks tests as stress/load tests (skipped by default)",
+    "chaos: marks tests as chaos engineering tests (skipped by default)",
+    "e2e: marks tests as end-to-end workflow tests (skipped by default)",
+]
+# Heavy tests skipped by default. Run specific categories:
+#   pytest -m slow          # Run slow tests
+#   pytest -m stress        # Run stress tests
+#   pytest -m chaos         # Run chaos tests
+#   pytest -m e2e           # Run e2e tests
+#   pytest -m benchmark --benchmark-enable  # Run benchmarks
+
+[tool.coverage.run]
+source = ["src/spectryn"]
+branch = true
+relative_files = true
+omit = ["*/tests/*", "*/__main__.py"]
+
+[tool.coverage.report]
+# Target: 80%+ coverage. Current baseline: ~65%. Increase as coverage improves.
+fail_under = 80
+show_missing = true
+skip_covered = false
+precision = 2
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+# ============================================================================
+# Type Checking
+# ============================================================================
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+packages = ["spectryn"]
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = false  # Some ignores conditional
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+ignore_missing_imports = true  # Optional dependencies
+
+[[tool.mypy.overrides]]
+module = ["requests.*", "aiohttp.*", "opentelemetry.*", "prometheus_client.*", "gitlab.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Services and container modules use complex factory patterns
+module = [
+    "spectryn.core.services",
+    "spectryn.core.container",
+    "spectryn.core",  # Module __init__ file
+    "spectryn.core.result",
+    "spectryn.adapters.cache.backend",
+]
+disable_error_code = ["type-abstract", "assignment", "valid-type", "type-var", "misc", "call-arg", "arg-type"]
+
+[[tool.mypy.overrides]]
+# CLI modules - keep these loose for now but tighter than before
+module = [
+    "spectryn.cli.*",
+]
+warn_return_any = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disable_error_code = ["union-attr", "arg-type", "assignment", "attr-defined"]
+
+[[tool.mypy.overrides]]
+# Adapters with complex return types from external APIs
+# Note: no-any-return is allowed because API responses are Any typed
+module = [
+    "spectryn.adapters.monday.*",
+    "spectryn.adapters.clickup.*",
+    "spectryn.adapters.bitbucket.*",
+    "spectryn.adapters.youtrack.*",
+    "spectryn.adapters.asana.*",
+    "spectryn.adapters.trello.*",
+    "spectryn.adapters.shortcut.*",
+    "spectryn.adapters.plane.*",
+    "spectryn.adapters.pivotal.*",
+    "spectryn.adapters.basecamp.*",
+]
+warn_return_any = false
+disable_error_code = ["no-any-return", "arg-type", "assignment"]
+
+[[tool.mypy.overrides]]
+# Core adapters - tighter checking
+module = [
+    "spectryn.adapters.formatters.*",
+    "spectryn.adapters.parsers.*",
+    "spectryn.adapters.jira.*",
+    "spectryn.adapters.github.*",
+    "spectryn.adapters.linear.*",
+    "spectryn.adapters.azure_devops.*",
+    "spectryn.adapters.confluence.*",
+    "spectryn.adapters.config.*",
+    "spectryn.adapters.async_base.*",
+]
+warn_return_any = false
+disable_error_code = ["index", "union-attr", "var-annotated", "arg-type", "assignment", "attr-defined", "return-value", "name-defined", "dict-item", "import-untyped"]
+
+[[tool.mypy.overrides]]
+# Application sync modules - now tighter
+module = [
+    "spectryn.application.sync.*",
+]
+warn_return_any = false
+disallow_untyped_defs = false
+disable_error_code = ["attr-defined", "arg-type", "name-defined", "assignment", "call-arg"]
+
+[[tool.mypy.overrides]]
+# Application modules - general (includes ai modules)
+module = [
+    "spectryn.application.*",
+]
+warn_return_any = false
+disable_error_code = ["attr-defined", "dict-item", "list-item"]
+
+[[tool.mypy.overrides]]
+# Plugin modules are currently lightweight wrappers around adapters
+module = [
+    "spectryn.plugins.*",
+]
+warn_return_any = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[[tool.mypy.overrides]]
+# Testing utilities
+module = [
+    "spectryn.testing",
+]
+disable_error_code = ["arg-type"]
+
+# ============================================================================
+# Linting & Formatting
+# ============================================================================
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "C90",    # mccabe complexity
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "A",      # builtins
+    "C4",     # comprehensions
+    "T10",    # debugger
+    "ISC",    # implicit-str-concat
+    "ICN",    # import-conventions
+    "PIE",    # misc
+    "PT",     # pytest-style
+    "Q",      # quotes
+    "RET",    # return
+    "SIM",    # simplify
+    "TID",    # tidy-imports
+    "ARG",    # unused-arguments
+    "PTH",    # pathlib
+    "ERA",    # eradicate
+    "PL",     # pylint
+    "RUF",    # ruff-specific
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "PLR0913", # too many arguments
+    "PLR2004", # magic value comparison
+    "PLR0912", # too many branches
+    "C901",    # too complex
+    "A004",    # import shadowing builtin (PermissionError used intentionally)
+    "RUF002",  # ambiguous unicode in docstrings (mathematical symbols)
+    "RUF003",  # ambiguous unicode in comments (mathematical symbols)
+    "PLC0415", # import not at top-level (lazy imports for optional deps)
+    "PTH123",  # Path.open vs open() - preference not enforced
+    "B904",    # raise from err - will fix incrementally
+    "PLR0915", # too many statements
+    "PLR0911", # too many return statements
+    "SIM102",  # nested if - readability choice
+    "E741",    # ambiguous variable name (l, O, I)
+    "RUF012",  # mutable class attributes
+    "PLW2901", # loop variable overwritten
+    "PLW0603", # global statement
+    "RUF001",  # ambiguous unicode
+    "ISC003",  # explicit string concat
+    "ARG001",  # unused function argument (interface implementations)
+    "ARG002",  # unused method argument (interface implementations)
+    "ARG005",  # unused lambda argument
+    "B027",    # empty method in abstract class
+    "A001",    # variable shadowing builtin (intentional for compat aliases)
+    "A002",    # argument shadowing builtin (format in log handlers)
+    "ERA001",  # commented out code (kept for documentation)
+    "F402",    # import shadowed by loop variable
+    "F821",    # undefined name (forward references)
+    "B023",    # function doesn't bind loop variable
+    "PLW1508", # invalid env var default type
+    "PT028",   # test param has default argument
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "ARG001",  # unused function argument
+    "ARG002",  # unused method argument
+    "ARG005",  # unused lambda argument
+    "PLR2004", # magic value comparison
+    "PLC0415", # import not at top level (fixtures use lazy imports)
+    "PT011",   # pytest.raises too broad
+    "PT017",   # pytest assert in except
+    "PT019",   # pytest fixture without value
+    "E731",    # lambda assignment
+    "B023",    # function doesn't bind loop variable
+    "N806",    # variable should be lowercase (test mocks)
+    "PLR0915", # too many statements
+    "SIM102",  # nested if
+    "SIM117",  # nested with statements (common in test mocking)
+    "F401",    # unused import (conditional imports)
+    "ERA001",  # commented out code
+    "PLW2901", # loop variable overwritten
+    "F821",    # undefined name (forward refs in tests)
+    "RUF059",  # unused unpacked variable (common in tests that only check first value)
+    "RET504",  # unnecessary assignment before return (clearer in fixtures)
+]
+"src/spectryn/adapters/*" = [
+    "ARG002",  # unused method argument (interface implementations)
+    "B023",    # function doesn't bind loop variable
+]
+"src/spectryn/adapters/graphql_api/schema.py" = [
+    "E402",    # module import not at top (imports after SDL string is intentional)
+]
+"src/spectryn/adapters/graphql_api/server.py" = [
+    "N803",    # camelCase args required for GraphQL resolver compatibility
+]
+"src/spectryn/core/__init__.py" = ["F401", "F403"]  # re-exports
+"src/spectryn/adapters/observability/*" = ["F401"]  # optional imports
+"src/spectryn/cli/telemetry.py" = ["F401"]  # optional imports for type checking
+"**/__init__.py" = ["F401"]  # re-exports
+
+[tool.ruff.lint.isort]
+known-first-party = ["spectryn"]
+force-single-line = false
+lines-after-imports = 2
+
+# Mutation testing is configured via mutmut_config.py
+# Run with: mutmut run
