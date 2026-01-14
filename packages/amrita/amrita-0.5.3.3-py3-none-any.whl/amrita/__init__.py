@@ -1,0 +1,23 @@
+"""Amrita框架初始化模块
+
+该模块是Amrita框架的入口点，负责导入和初始化核心组件。
+"""
+
+import nonebot
+from nonebot import run
+
+from . import cli
+from .config import get_amrita_config
+from .utils.bot_utils import init
+from .utils.plugins import load_plugins
+from .utils.utils import get_amrita_version
+
+__all__ = [
+    "cli",
+    "get_amrita_config",
+    "get_amrita_version",
+    "init",
+    "load_plugins",
+    "nonebot",
+    "run",
+]
