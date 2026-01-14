@@ -1,0 +1,24 @@
+
+# Because I don't remember there is the '|' in Python3.10+
+# So I do it to make the mistake right
+
+# a lightweight package
+## There are many module on it
+such as algo, algebra, const, rgb... You name it!
+A simple:
+```python
+from unstdlibpy.algebra import *
+num = X * X
+# algebra(use json to store algebra, light weight but slow)
+# If you are interested in it, you can make a better function than Algebra.simplify(self).
+
+print(num)
+# look at num, presented in the form of plain text.
+# It's still the same feeling.
+# If you are interested in it, you also can make a better function than Algebra.__str__(self).
+# Although you make a new library to do it, I don't care. But you hane to make it free. FREE!
+
+print(num.getvalue(2, X)) # Get a value of num(square of X).
+```
+# over
+That's the all. If you're interestd in this module, please let more people know it!
